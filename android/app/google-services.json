@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "407151644931",
+    "project_id": "three-missions",
+    "storage_bucket": "three-missions.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:407151644931:android:6a7e3b06084a93db4d1936",
+        "android_client_info": {
+          "package_name": "com.example.three_missions"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "407151644931-8iha3m82vgd9rs614h8affr807t07r9u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.three_missions",
+            "certificate_hash": "9fee198f145419c00016aac9d55ddc3643401b1e"
+          }
+        },
+        {
+          "client_id": "407151644931-hftmt0065ihv42dtd8574k3gfrf80kfu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBz1JVWiMVLHyx3FPKSTtdQfo7EsyTitk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "407151644931-hftmt0065ihv42dtd8574k3gfrf80kfu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "407151644931-lfngai4qujkia78vds38dm63u5prmdfr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.threeMissions"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
