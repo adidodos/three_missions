@@ -1,36 +1,46 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/firestore_converters.dart';
 
-/// Member role within a crew.
 enum MemberRole {
-  /// Crew owner (full permissions)
-  owner,
+  owner('OWNER'),
+  admin('ADMIN'),
+  member('MEMBER');
 
-  /// Admin (can manage members)
-  admin,
+  final String value;
+  const MemberRole(this.value);
 
-  /// Regular member
-  member,
+  static MemberRole fromString(String? value) {
+    return MemberRole.values.firstWhere(
+      (r) => r.value == value,
+      orElse: () => MemberRole.member,
+    );
+  }
+
+  bool get isAdmin => this == MemberRole.owner || this == MemberRole.admin;
 }
 
-/// Crew member model.
-///
-/// Firestore path: crews/{crewId}/members/{uid}
-/// Document ID: User's Firebase Auth UID
+enum MemberStatus {
+  active('ACTIVE'),
+  banned('BANNED');
+
+  final String value;
+  const MemberStatus(this.value);
+
+  static MemberStatus fromString(String? value) {
+    return MemberStatus.values.firstWhere(
+      (s) => s.value == value,
+      orElse: () => MemberStatus.active,
+    );
+  }
+}
+
+/// Member: /crews/{crewId}/members/{uid}
 class Member {
-  /// User's UID (document ID)
   final String uid;
-
-  /// Display name (copied from UserProfile for denormalization)
   final String displayName;
-
-  /// Profile photo URL (optional)
   final String? photoUrl;
-
-  /// Member role in this crew
   final MemberRole role;
-
-  /// Join timestamp
+  final MemberStatus status;
   final DateTime joinedAt;
 
   const Member({
@@ -38,6 +48,7 @@ class Member {
     required this.displayName,
     this.photoUrl,
     required this.role,
+    this.status = MemberStatus.active,
     required this.joinedAt,
   });
 
@@ -47,52 +58,41 @@ class Member {
       uid: doc.id,
       displayName: data['displayName'] as String? ?? '',
       photoUrl: data['photoUrl'] as String?,
-      role: _parseRole(data['role'] as String?),
+      role: MemberRole.fromString(data['role'] as String?),
+      status: MemberStatus.fromString(data['status'] as String?),
       joinedAt: timestampToDateTime(data['joinedAt'] as Timestamp?),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
-    return {
-      'displayName': displayName,
-      if (photoUrl != null) 'photoUrl': photoUrl,
-      'role': role.name,
-      'joinedAt': dateTimeToTimestamp(joinedAt),
-    };
-  }
+  Map<String, dynamic> toFirestoreCreate() => {
+    'uid': uid,
+    'displayName': displayName,
+    if (photoUrl != null) 'photoUrl': photoUrl,
+    'role': role.value,
+    'status': status.value,
+    'joinedAt': serverTimestamp,
+  };
 
-  Map<String, dynamic> toFirestoreCreate() {
-    return {
-      'displayName': displayName,
-      if (photoUrl != null) 'photoUrl': photoUrl,
-      'role': role.name,
-      'joinedAt': serverTimestamp,
-    };
-  }
-
-  static MemberRole _parseRole(String? value) {
-    return MemberRole.values.firstWhere(
-      (r) => r.name == value,
-      orElse: () => MemberRole.member,
-    );
-  }
+  Map<String, dynamic> toFirestoreUpdate() => {
+    'displayName': displayName,
+    if (photoUrl != null) 'photoUrl': photoUrl,
+    'role': role.value,
+    'status': status.value,
+  };
 
   Member copyWith({
     String? uid,
     String? displayName,
     String? photoUrl,
     MemberRole? role,
+    MemberStatus? status,
     DateTime? joinedAt,
-  }) {
-    return Member(
-      uid: uid ?? this.uid,
-      displayName: displayName ?? this.displayName,
-      photoUrl: photoUrl ?? this.photoUrl,
-      role: role ?? this.role,
-      joinedAt: joinedAt ?? this.joinedAt,
-    );
-  }
-
-  @override
-  String toString() => 'Member(uid: $uid, displayName: $displayName, role: ${role.name})';
+  }) => Member(
+    uid: uid ?? this.uid,
+    displayName: displayName ?? this.displayName,
+    photoUrl: photoUrl ?? this.photoUrl,
+    role: role ?? this.role,
+    status: status ?? this.status,
+    joinedAt: joinedAt ?? this.joinedAt,
+  );
 }

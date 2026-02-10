@@ -6,89 +6,41 @@ library;
 
 import 'package:intl/intl.dart';
 
-/// Date key format: "YYYY-MM-DD"
 final _dateFormat = DateFormat('yyyy-MM-dd');
 
 /// Converts [DateTime] to dateKey string ("YYYY-MM-DD").
-///
-/// Example:
-/// ```dart
-/// toDateKey(DateTime(2024, 1, 15)) // "2024-01-15"
-/// ```
-String toDateKey(DateTime date) {
-  return _dateFormat.format(date);
-}
+String toDateKey(DateTime date) => _dateFormat.format(date);
 
 /// Parses dateKey string to [DateTime].
-///
-/// Example:
-/// ```dart
-/// fromDateKey("2024-01-15") // DateTime(2024, 1, 15)
-/// ```
-DateTime fromDateKey(String dateKey) {
-  return _dateFormat.parseStrict(dateKey);
-}
+DateTime fromDateKey(String dateKey) => _dateFormat.parseStrict(dateKey);
 
 /// Returns the weekKey for a given [date].
-///
-/// weekKey is the dateKey of the Monday of that week.
-/// Week starts on Monday (ISO 8601 standard).
-///
-/// Example:
-/// ```dart
-/// // Wednesday 2024-01-17 -> Monday 2024-01-15
-/// toWeekKey(DateTime(2024, 1, 17)) // "2024-01-15"
-///
-/// // Sunday 2024-01-21 -> Monday 2024-01-15
-/// toWeekKey(DateTime(2024, 1, 21)) // "2024-01-15"
-///
-/// // Monday 2024-01-15 -> Monday 2024-01-15
-/// toWeekKey(DateTime(2024, 1, 15)) // "2024-01-15"
-/// ```
-String toWeekKey(DateTime date) {
-  final monday = toMondayOfWeek(date);
-  return toDateKey(monday);
-}
+/// weekKey is the dateKey of the Monday of that week (ISO 8601).
+String toWeekKey(DateTime date) => toDateKey(toMondayOfWeek(date));
 
 /// Returns the Monday of the week containing [date].
-///
-/// Uses ISO 8601 week definition (Monday = 1, Sunday = 7).
 DateTime toMondayOfWeek(DateTime date) {
-  // DateTime.weekday: Monday = 1, Sunday = 7
-  final daysFromMonday = date.weekday - DateTime.monday; // 0 for Monday, 6 for Sunday
+  final daysFromMonday = date.weekday - DateTime.monday;
   return DateTime(date.year, date.month, date.day - daysFromMonday);
 }
 
 /// Returns the Sunday of the week containing [date].
 DateTime toSundayOfWeek(DateTime date) {
-  final monday = toMondayOfWeek(date);
-  return monday.add(const Duration(days: 6));
+  return toMondayOfWeek(date).add(const Duration(days: 6));
 }
 
-/// Generates a workout document ID.
-///
-/// Format: "{uid}_{dateKey}"
-/// This ensures one workout per user per day.
-///
-/// Example:
-/// ```dart
-/// toWorkoutId("user123", DateTime(2024, 1, 15)) // "user123_2024-01-15"
-/// ```
-String toWorkoutId(String uid, DateTime date) {
-  return '${uid}_${toDateKey(date)}';
-}
+/// Generates a workout document ID: "{uid}_{dateKey}"
+/// This enforces one workout per user per day.
+String toWorkoutId(String uid, DateTime date) => '${uid}_${toDateKey(date)}';
 
 /// Parses workout ID to extract uid and dateKey.
-///
-/// Returns null if format is invalid.
 ({String uid, String dateKey})? parseWorkoutId(String workoutId) {
-  final parts = workoutId.split('_');
-  if (parts.length < 2) return null;
+  final lastUnderscore = workoutId.lastIndexOf('_');
+  if (lastUnderscore == -1) return null;
 
-  final dateKey = parts.last;
-  final uid = parts.sublist(0, parts.length - 1).join('_');
+  final dateKey = workoutId.substring(lastUnderscore + 1);
+  final uid = workoutId.substring(0, lastUnderscore);
 
-  // Validate dateKey format
   try {
     fromDateKey(dateKey);
     return (uid: uid, dateKey: dateKey);
@@ -97,18 +49,27 @@ String toWorkoutId(String uid, DateTime date) {
   }
 }
 
-/// Returns today's date with time set to midnight.
+/// Returns today with time set to midnight.
 DateTime today() {
   final now = DateTime.now();
   return DateTime(now.year, now.month, now.day);
 }
 
 /// Returns today's dateKey.
-String todayKey() {
-  return toDateKey(today());
+String todayKey() => toDateKey(today());
+
+/// Returns this week's weekKey (Monday).
+String thisWeekKey() => toWeekKey(today());
+
+/// Returns list of dates for the week containing [date].
+List<DateTime> getWeekDates(DateTime date) {
+  final monday = toMondayOfWeek(date);
+  return List.generate(7, (i) => monday.add(Duration(days: i)));
 }
 
-/// Returns this week's weekKey (Monday of current week).
-String thisWeekKey() {
-  return toWeekKey(today());
+/// Returns start and end of month.
+(DateTime start, DateTime end) getMonthRange(DateTime date) {
+  final start = DateTime(date.year, date.month, 1);
+  final end = DateTime(date.year, date.month + 1, 0);
+  return (start, end);
 }

@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Workout photos: crews/{crewId}/workouts/{uid}/{dateKey}.jpg
+    match /crews/{crewId}/workouts/{uid}/{fileName} {
+      // Only the owner can upload/update their photos
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // All authenticated users can read (for crew table)
+      allow read: if request.auth != null;
+    }
+  }
+}

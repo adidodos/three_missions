@@ -2,45 +2,105 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: 인증된 사용자인지 확인
-    function isAuthenticated() {
+    // Helper functions
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper: 해당 uid가 본인인지 확인
     function isOwner(uid) {
       return request.auth.uid == uid;
     }
 
-    // MVP: "default" 크루만 사용
-    // 인증된 사용자는 읽기/쓰기 모두 가능
+    // Get member document for current user in a crew
+    function getMember(crewId) {
+      return get(/databases/$(database)/documents/crews/$(crewId)/members/$(request.auth.uid));
+    }
+
+    // Check if user is a member of the crew
+    function isMember(crewId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/crews/$(crewId)/members/$(request.auth.uid));
+    }
+
+    // Check if user is admin (OWNER or ADMIN) of the crew
+    function isAdmin(crewId) {
+      return isMember(crewId) && getMember(crewId).data.role in ['OWNER', 'ADMIN'];
+    }
+
+    // Check if user is the crew owner
+    function isCrewOwner(crewId) {
+      return isMember(crewId) && getMember(crewId).data.role == 'OWNER';
+    }
+
+    // ==================
+    // /users/{uid}
+    // ==================
+    match /users/{uid} {
+      // Users can read/write their own profile
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(uid);
+    }
+
+    // ==================
+    // /crews/{crewId}
+    // ==================
     match /crews/{crewId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated()
-        && resource.data.ownerUid == request.auth.uid;
+      // Any signed-in user can read crews (for search)
+      allow read: if isSignedIn();
 
-      // Members 컬렉션
-      match /members/{memberId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated();
+      // Any signed-in user can create a crew
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+
+      // Only owner can update/delete crew
+      allow update, delete: if isCrewOwner(crewId);
+
+      // ==================
+      // /crews/{crewId}/members/{uid}
+      // ==================
+      match /members/{uid} {
+        // Members can read other members
+        allow read: if isMember(crewId);
+
+        // Admins can create/update/delete members (except owner)
+        allow create: if isAdmin(crewId);
+        allow update: if isAdmin(crewId) && resource.data.role != 'OWNER';
+        allow delete: if isAdmin(crewId) && resource.data.role != 'OWNER';
       }
 
-      // Exercise Types 컬렉션
-      match /exerciseTypes/{typeId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated();
+      // ==================
+      // /crews/{crewId}/joinRequests/{uid}
+      // ==================
+      match /joinRequests/{uid} {
+        // User can read their own request
+        allow read: if isOwner(uid);
+
+        // Admins can read all requests
+        allow read: if isAdmin(crewId);
+
+        // User can create their own request
+        allow create: if isOwner(uid) && request.resource.data.status == 'PENDING';
+
+        // Admins can update requests (approve/reject)
+        allow update: if isAdmin(crewId);
       }
 
-      // Logs 컬렉션
-      match /logs/{logId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        // 본인이 작성한 로그만 수정/삭제 가능
-        allow update, delete: if isAuthenticated()
-          && resource.data.createdByUid == request.auth.uid;
+      // ==================
+      // /crews/{crewId}/workouts/{workoutId}
+      // ==================
+      match /workouts/{workoutId} {
+        // Members can read all workouts (for crew table)
+        allow read: if isMember(crewId);
+
+        // Users can only create/update/delete their own workouts
+        // workoutId format: {uid}_{dateKey}
+        allow create: if isMember(crewId)
+          && request.resource.data.uid == request.auth.uid
+          && workoutId.matches(request.auth.uid + '_[0-9]{4}-[0-9]{2}-[0-9]{2}');
+
+        allow update: if isMember(crewId)
+          && resource.data.uid == request.auth.uid;
+
+        allow delete: if isMember(crewId)
+          && resource.data.uid == request.auth.uid;
       }
     }
   }
