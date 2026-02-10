@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_provider.dart';
+import '../../core/repositories/crew_repository.dart';
 import 'hub_provider.dart';
 
 class CreateCrewDialog extends ConsumerStatefulWidget {
@@ -14,6 +15,7 @@ class _CreateCrewDialogState extends ConsumerState<CreateCrewDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -24,7 +26,10 @@ class _CreateCrewDialogState extends ConsumerState<CreateCrewDialog> {
   Future<void> _create() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final user = ref.read(currentUserProvider);
@@ -41,6 +46,14 @@ class _CreateCrewDialogState extends ConsumerState<CreateCrewDialog> {
       if (mounted) {
         Navigator.pop(context, true);
       }
+    } on CrewNameTakenException {
+      if (mounted) {
+        setState(() => _errorMessage = '이미 사용 중인 크루 이름입니다');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = '오류가 발생했습니다: $e');
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -54,22 +67,38 @@ class _CreateCrewDialogState extends ConsumerState<CreateCrewDialog> {
       title: const Text('크루 생성'),
       content: Form(
         key: _formKey,
-        child: TextFormField(
-          controller: _nameController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: '크루 이름',
-            hintText: '예: 아침 러닝 크루',
-          ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '크루 이름을 입력하세요';
-            }
-            if (value.trim().length < 2) {
-              return '2자 이상 입력하세요';
-            }
-            return null;
-          },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '크루 이름',
+                hintText: '예: 아침 러닝 크루',
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return '크루 이름을 입력하세요';
+                }
+                if (value.trim().length < 2) {
+                  return '2자 이상 입력하세요';
+                }
+                return null;
+              },
+              onFieldSubmitted: (_) => _create(),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
       actions: [

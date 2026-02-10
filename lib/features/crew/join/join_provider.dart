@@ -16,7 +16,11 @@ final joinRequestRepositoryProvider = Provider<JoinRequestRepository>((ref) {
 final crewSearchProvider = FutureProvider.family<List<Crew>, String>((ref, query) async {
   if (query.isEmpty) return [];
   final repo = ref.read(joinCrewRepositoryProvider);
-  return await repo.searchCrews(query);
+  try {
+    return await repo.searchCrews(query);
+  } catch (_) {
+    return [];
+  }
 });
 
 final myRequestProvider = StreamProvider.family<JoinRequest?, String>((ref, crewId) {

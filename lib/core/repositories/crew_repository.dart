@@ -52,8 +52,19 @@ class CrewRepository {
     return crewsWithMember;
   }
 
+  Future<bool> isNameTaken(String name) async {
+    final snapshot = await _crewsRef
+        .where('name', isEqualTo: name)
+        .limit(1)
+        .get();
+    return snapshot.docs.isNotEmpty;
+  }
+
   Future<String> createCrew(String name, String ownerUid, String ownerName, String? photoUrl) async {
-    // Create crew
+    if (await isNameTaken(name)) {
+      throw CrewNameTakenException(name);
+    }
+
     final crewRef = _crewsRef.doc();
     final crew = Crew(
       id: crewRef.id,
@@ -61,9 +72,6 @@ class CrewRepository {
       ownerUid: ownerUid,
       createdAt: DateTime.now(),
     );
-    await crewRef.set(crew.toFirestoreCreate());
-
-    // Add owner as first member
     final member = Member(
       uid: ownerUid,
       displayName: ownerName,
@@ -72,8 +80,21 @@ class CrewRepository {
       status: MemberStatus.active,
       joinedAt: DateTime.now(),
     );
-    await crewRef.collection('members').doc(ownerUid).set(member.toFirestoreCreate());
+
+    // Batch write: create crew + owner member atomically
+    final batch = _firestore.batch();
+    batch.set(crewRef, crew.toFirestoreCreate());
+    batch.set(crewRef.collection('members').doc(ownerUid), member.toFirestoreCreate());
+    await batch.commit();
 
     return crewRef.id;
   }
+}
+
+class CrewNameTakenException implements Exception {
+  final String name;
+  const CrewNameTakenException(this.name);
+
+  @override
+  String toString() => '이미 사용 중인 크루 이름입니다: $name';
 }

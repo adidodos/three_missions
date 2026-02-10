@@ -57,11 +57,16 @@ service cloud.firestore {
       // /crews/{crewId}/members/{uid}
       // ==================
       match /members/{uid} {
-        // Members can read other members
-        allow read: if isMember(crewId);
+        // Members can read other members, users can read own membership (collectionGroup)
+        allow read: if isMember(crewId) || (isSignedIn() && resource.data.uid == request.auth.uid);
 
-        // Admins can create/update/delete members (except owner)
-        allow create: if isAdmin(crewId);
+        // Crew owner can create their own initial member doc
+        // Admins can create other members
+        allow create: if isAdmin(crewId)
+          || (isSignedIn()
+              && uid == request.auth.uid
+              && get(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid == request.auth.uid
+              && request.resource.data.role == 'OWNER');
         allow update: if isAdmin(crewId) && resource.data.role != 'OWNER';
         allow delete: if isAdmin(crewId) && resource.data.role != 'OWNER';
       }

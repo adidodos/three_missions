@@ -33,5 +33,9 @@ final ensureUserProfileProvider = FutureProvider.autoDispose<void>((ref) async {
     photoUrl: user.photoURL,
     createdAt: DateTime.now(),
   );
-  await repo.ensureUser(profile);
+  try {
+    await repo.ensureUser(profile);
+  } catch (_) {
+    // Firestore rules may not be deployed yet; skip silently
+  }
 });
