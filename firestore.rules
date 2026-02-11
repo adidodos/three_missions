@@ -32,6 +32,13 @@ service cloud.firestore {
     }
 
     // ==================
+    // Collection group: members (for querying user's crews)
+    // ==================
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ==================
     // /users/{uid}
     // ==================
     match /users/{uid} {
@@ -65,7 +72,7 @@ service cloud.firestore {
         allow create: if isAdmin(crewId)
           || (isSignedIn()
               && uid == request.auth.uid
-              && get(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid == request.auth.uid
+              && getAfter(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid == request.auth.uid
               && request.resource.data.role == 'OWNER');
         allow update: if isAdmin(crewId) && resource.data.role != 'OWNER';
         allow delete: if isAdmin(crewId) && resource.data.role != 'OWNER';

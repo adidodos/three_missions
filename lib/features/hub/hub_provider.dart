@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/repositories/crew_repository.dart';
@@ -13,9 +12,5 @@ final myCrewsProvider = FutureProvider<List<Crew>>((ref) async {
   if (user == null) return [];
 
   final repo = ref.read(crewRepositoryProvider);
-  try {
-    return await repo.getMyCrews(user.uid);
-  } on FirebaseException catch (_) {
-    return [];
-  }
+  return await repo.getMyCrews(user.uid);
 });

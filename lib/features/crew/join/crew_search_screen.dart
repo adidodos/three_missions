@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/models/join_request.dart';
+import '../../../core/models/member.dart';
 import 'join_provider.dart';
 
 class CrewSearchScreen extends ConsumerStatefulWidget {
@@ -101,6 +102,7 @@ class _CrewSearchItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final memberAsync = ref.watch(myMembershipProvider(crewId));
     final requestAsync = ref.watch(myRequestProvider(crewId));
 
     return Card(
@@ -109,38 +111,55 @@ class _CrewSearchItem extends ConsumerWidget {
           child: Icon(Icons.group),
         ),
         title: Text(crewName),
-        trailing: requestAsync.when(
+        trailing: memberAsync.when(
           loading: () => const SizedBox(
             width: 24,
             height: 24,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           error: (_, __) => const Icon(Icons.error),
-          data: (request) {
-            if (request == null) {
-              return ElevatedButton(
-                onPressed: () => _requestJoin(context, ref),
-                child: const Text('가입 신청'),
+          data: (member) {
+            if (member != null && member.status == MemberStatus.active) {
+              return Chip(
+                label: const Text('크루원'),
+                backgroundColor: Colors.blue.shade100,
               );
             }
 
-            switch (request.status) {
-              case RequestStatus.pending:
-                return Chip(
-                  label: const Text('대기중'),
-                  backgroundColor: Colors.orange.shade100,
-                );
-              case RequestStatus.approved:
-                return Chip(
-                  label: const Text('승인됨'),
-                  backgroundColor: Colors.green.shade100,
-                );
-              case RequestStatus.rejected:
-                return Chip(
-                  label: const Text('거절됨'),
-                  backgroundColor: Colors.red.shade100,
-                );
-            }
+            return requestAsync.when(
+              loading: () => const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              error: (_, __) => const Icon(Icons.error),
+              data: (request) {
+                if (request == null) {
+                  return ElevatedButton(
+                    onPressed: () => _requestJoin(context, ref),
+                    child: const Text('가입 신청'),
+                  );
+                }
+
+                switch (request.status) {
+                  case RequestStatus.pending:
+                    return Chip(
+                      label: const Text('대기중'),
+                      backgroundColor: Colors.orange.shade100,
+                    );
+                  case RequestStatus.approved:
+                    return Chip(
+                      label: const Text('승인됨'),
+                      backgroundColor: Colors.green.shade100,
+                    );
+                  case RequestStatus.rejected:
+                    return Chip(
+                      label: const Text('거절됨'),
+                      backgroundColor: Colors.red.shade100,
+                    );
+                }
+              },
+            );
           },
         ),
       ),

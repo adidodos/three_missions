@@ -43,6 +43,8 @@ class _CreateCrewDialogState extends ConsumerState<CreateCrewDialog> {
         user.photoURL,
       );
 
+      ref.invalidate(myCrewsProvider);
+
       if (mounted) {
         Navigator.pop(context, true);
       }
