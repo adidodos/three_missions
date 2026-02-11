@@ -76,6 +76,15 @@ class CrewHomeScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/crew/$crewId/members'),
+                icon: const Icon(Icons.group),
+                label: const Text('크루원 목록'),
+              ),
+            ),
           ],
         ),
       ),

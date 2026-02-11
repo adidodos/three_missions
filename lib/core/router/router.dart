@@ -15,6 +15,7 @@ import '../../features/crew/home/workout_form_screen.dart';
 import '../../features/crew/table/crew_table_screen.dart';
 import '../../features/crew/stats/stats_screen.dart';
 import '../../features/crew/manage/manage_screen.dart';
+import '../../features/crew/members/members_screen.dart';
 
 final memberRepositoryProvider = Provider<MemberRepository>((ref) {
   return MemberRepository();
@@ -101,6 +102,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'stats',
                 builder: (context, state) => StatsScreen(
+                  crewId: state.pathParameters['id']!,
+                ),
+              ),
+              GoRoute(
+                path: 'members',
+                builder: (context, state) => MembersScreen(
                   crewId: state.pathParameters['id']!,
                 ),
               ),
