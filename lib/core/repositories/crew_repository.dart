@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/crew.dart';
+import '../models/crew_settings.dart';
 import '../models/member.dart';
 
 class CrewRepository {
@@ -88,6 +89,24 @@ class CrewRepository {
     await batch.commit();
 
     return crewRef.id;
+  }
+
+  Future<void> updateSettings(String crewId, CrewSettings settings) async {
+    await _crewsRef.doc(crewId).update({
+      'settings': settings.toMap(),
+    });
+  }
+
+  Future<void> deleteCrew(String crewId) async {
+    final membersSnapshot =
+        await _crewsRef.doc(crewId).collection('members').get();
+
+    final batch = _firestore.batch();
+    for (final doc in membersSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(_crewsRef.doc(crewId));
+    await batch.commit();
   }
 }
 
