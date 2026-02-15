@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/date_keys.dart';
+import '../../../core/utils/mission_status.dart';
+import '../home/crew_home_provider.dart';
 import 'table_provider.dart';
 import 'workout_detail_dialog.dart';
 
@@ -15,6 +17,8 @@ class CrewTableScreen extends ConsumerWidget {
     final membersAsync = ref.watch(crewMembersProvider(crewId));
     final workoutsAsync = ref.watch(selectedWeekWorkoutsProvider(crewId));
     final weekOffset = ref.watch(selectedWeekOffsetProvider);
+    final crew = ref.watch(crewDetailProvider(crewId)).value;
+    final goal = crew?.settings?.weeklyGoal ?? 3;
 
     final selectedDate = today().add(Duration(days: weekOffset * 7));
     final weekDates = getWeekDates(selectedDate);
@@ -64,7 +68,6 @@ class CrewTableScreen extends ConsumerWidget {
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('오류: $e')),
                 data: (workouts) {
-                  // Create workout map: uid -> Set<dateKey>
                   final workoutMap = <String, Map<String, dynamic>>{};
                   for (final w in workouts) {
                     workoutMap['${w.uid}_${w.dateKey}'] = {
@@ -80,6 +83,7 @@ class CrewTableScreen extends ConsumerWidget {
                         members,
                         weekDates,
                         workoutMap,
+                        goal,
                       ),
                     ),
                   );
@@ -97,7 +101,10 @@ class CrewTableScreen extends ConsumerWidget {
     List members,
     List<DateTime> weekDates,
     Map<String, Map<String, dynamic>> workoutMap,
+    int goal,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return DataTable(
       columnSpacing: 16,
       columns: [
@@ -128,22 +135,41 @@ class CrewTableScreen extends ConsumerWidget {
           final dateKey = toDateKey(date);
           final key = '${member.uid}_$dateKey';
           final hasWorkout = workoutMap.containsKey(key);
+          final status = getMissionStatus(date: date, hasRecord: hasWorkout);
 
           if (hasWorkout) totalCount++;
 
           return DataCell(
-            Center(
-              child: hasWorkout
-                  ? Icon(
-                      Icons.check_circle,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 24,
-                    )
-                  : Icon(
-                      Icons.circle_outlined,
-                      color: Theme.of(context).colorScheme.outline,
-                      size: 24,
+            SizedBox(
+              width: 28,
+              child: Center(
+                child: switch (status) {
+                  MissionStatus.completed => Text(
+                      'O',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
                     ),
+                  MissionStatus.missed => Text(
+                      'X',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                  MissionStatus.none => const Text(
+                      '-',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.transparent,
+                      ),
+                    ),
+                },
+              ),
             ),
             onTap: hasWorkout
                 ? () {
@@ -190,18 +216,18 @@ class CrewTableScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: totalCount >= 3
-                      ? Colors.green.shade100
-                      : Colors.orange.shade100,
+                  color: totalCount >= goal
+                      ? colorScheme.primaryContainer
+                      : colorScheme.errorContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '$totalCount/3',
+                  '$totalCount/$goal',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: totalCount >= 3
-                        ? Colors.green.shade700
-                        : Colors.orange.shade700,
+                    color: totalCount >= goal
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onErrorContainer,
                   ),
                 ),
               ),

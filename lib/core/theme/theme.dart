@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static ThemeData get light {
+  static ThemeData _build(Brightness brightness) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
         seedColor: Colors.indigo,
-        brightness: Brightness.light,
+        brightness: brightness,
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -34,4 +34,7 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData get light => _build(Brightness.light);
+  static ThemeData get dark => _build(Brightness.dark);
 }

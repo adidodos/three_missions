@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/date_keys.dart';
+import '../../../../core/utils/mission_status.dart';
 import '../crew_home_provider.dart';
 
 class WeekCalendar extends ConsumerWidget {
@@ -38,12 +39,16 @@ class WeekCalendar extends ConsumerWidget {
                     final dateKey = toDateKey(date);
                     final hasWorkout = workoutDates.contains(dateKey);
                     final isToday = dateKey == todayDateKey;
+                    final status = getMissionStatus(
+                      date: date,
+                      hasRecord: hasWorkout,
+                    );
                     final dayName = DateFormat.E('ko').format(date);
 
                     return _DayCell(
                       dayName: dayName,
                       date: date.day.toString(),
-                      hasWorkout: hasWorkout,
+                      status: status,
                       isToday: isToday,
                     );
                   }).toList(),
@@ -60,25 +65,27 @@ class WeekCalendar extends ConsumerWidget {
 class _DayCell extends StatelessWidget {
   final String dayName;
   final String date;
-  final bool hasWorkout;
+  final MissionStatus status;
   final bool isToday;
 
   const _DayCell({
     required this.dayName,
     required this.date,
-    required this.hasWorkout,
+    required this.status,
     required this.isToday,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         Text(
           dayName,
           style: TextStyle(
             fontSize: 12,
-            color: Theme.of(context).colorScheme.outline,
+            color: colorScheme.outline,
           ),
         ),
         const SizedBox(height: 4),
@@ -86,32 +93,35 @@ class _DayCell extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: hasWorkout
-                ? Theme.of(context).colorScheme.primary
+            color: status == MissionStatus.completed
+                ? colorScheme.primaryContainer
                 : isToday
-                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    ? colorScheme.surfaceContainerHighest
                     : null,
-            border: isToday && !hasWorkout
-                ? Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  )
+            border: isToday && status != MissionStatus.completed
+                ? Border.all(color: colorScheme.primary, width: 2)
                 : null,
             shape: BoxShape.circle,
           ),
           child: Center(
-            child: hasWorkout
-                ? Icon(
-                    Icons.check,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 20,
-                  )
-                : Text(
-                    date,
-                    style: TextStyle(
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                    ),
+            child: switch (status) {
+              MissionStatus.completed => Icon(
+                  Icons.check,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+              MissionStatus.missed => Icon(
+                  Icons.close,
+                  color: colorScheme.error,
+                  size: 20,
+                ),
+              MissionStatus.none => Text(
+                  date,
+                  style: TextStyle(
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                   ),
+                ),
+            },
           ),
         ),
       ],

@@ -35,6 +35,8 @@ class ThreeMissionsApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Three Missions',
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

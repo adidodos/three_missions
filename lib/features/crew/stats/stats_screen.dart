@@ -105,8 +105,8 @@ class _WeeklyTab extends ConsumerWidget {
             // Mission status
             Card(
               color: stats.isSuccess
-                  ? Colors.green.shade50
-                  : Colors.orange.shade50,
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.errorContainer,
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -114,8 +114,9 @@ class _WeeklyTab extends ConsumerWidget {
                     Icon(
                       stats.isSuccess ? Icons.emoji_events : Icons.flag,
                       size: 48,
-                      color:
-                          stats.isSuccess ? Colors.green : Colors.orange,
+                      color: stats.isSuccess
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error,
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -123,19 +124,19 @@ class _WeeklyTab extends ConsumerWidget {
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: stats.isSuccess
-                                ? Colors.green.shade700
-                                : Colors.orange.shade700,
+                                ? Theme.of(context).colorScheme.onPrimaryContainer
+                                : Theme.of(context).colorScheme.onErrorContainer,
                           ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       stats.isSuccess
-                          ? '이번 주 3회 인증을 달성했어요!'
-                          : '${3 - stats.count}회 더 인증하면 미션 성공!',
+                          ? '이번 주 ${stats.weeklyGoal}회 인증을 달성했어요!'
+                          : '${stats.weeklyGoal - stats.count}회 더 인증하면 미션 성공!',
                       style: TextStyle(
                         color: stats.isSuccess
-                            ? Colors.green.shade600
-                            : Colors.orange.shade600,
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).colorScheme.onErrorContainer,
                       ),
                     ),
                   ],
@@ -157,10 +158,10 @@ class _WeeklyTab extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     LinearProgressIndicator(
-                      value: (stats.count / 3).clamp(0.0, 1.0),
+                      value: (stats.count / stats.weeklyGoal).clamp(0.0, 1.0),
                     ),
                     const SizedBox(height: 8),
-                    Text('${stats.count} / 3 회'),
+                    Text('${stats.count} / ${stats.weeklyGoal} 회'),
                   ],
                 ),
               ),

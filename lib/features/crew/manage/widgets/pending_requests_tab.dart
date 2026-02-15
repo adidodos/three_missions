@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/auth/auth_provider.dart';
 import '../../../../core/models/member.dart';
 import '../../../../core/models/join_request.dart';
+import '../../../../core/widgets/shared_widgets.dart';
 import '../manage_provider.dart';
 
 class PendingRequestsTab extends ConsumerWidget {
@@ -20,24 +21,9 @@ class PendingRequestsTab extends ConsumerWidget {
       error: (e, _) => Center(child: Text('오류: $e')),
       data: (requests) {
         if (requests.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.inbox,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '대기 중인 가입 신청이 없습니다',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-              ],
-            ),
+          return const EmptyState(
+            icon: Icons.inbox,
+            message: '대기 중인 가입 신청이 없습니다',
           );
         }
 

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/repositories/workout_repository.dart';
 import '../../../core/utils/date_keys.dart';
+import '../home/crew_home_provider.dart';
 
 final statsWorkoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
   return WorkoutRepository();
@@ -12,12 +13,14 @@ class WeeklyStats {
   final bool isSuccess;
   final int streak;
   final List<String> workoutDates;
+  final int weeklyGoal;
 
   WeeklyStats({
     required this.count,
     required this.isSuccess,
     required this.streak,
     required this.workoutDates,
+    required this.weeklyGoal,
   });
 }
 
@@ -38,8 +41,12 @@ class MonthlyStats {
 final myWeeklyStatsProvider = FutureProvider.family<WeeklyStats, String>((ref, crewId) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) {
-    return WeeklyStats(count: 0, isSuccess: false, streak: 0, workoutDates: []);
+    return WeeklyStats(count: 0, isSuccess: false, streak: 0, workoutDates: [], weeklyGoal: 3);
   }
+
+  final crewRepo = ref.read(crewHomeRepositoryProvider);
+  final crew = await crewRepo.getCrew(crewId);
+  final goal = crew?.settings?.weeklyGoal ?? 3;
 
   final repo = ref.read(statsWorkoutRepositoryProvider);
   final workouts = await repo.getMyWeekWorkouts(crewId, user.uid, thisWeekKey());
@@ -60,9 +67,10 @@ final myWeeklyStatsProvider = FutureProvider.family<WeeklyStats, String>((ref, c
 
   return WeeklyStats(
     count: workouts.length,
-    isSuccess: workouts.length >= 3,
+    isSuccess: workouts.length >= goal,
     streak: streak,
     workoutDates: workouts.map((w) => w.dateKey).toList(),
+    weeklyGoal: goal,
   );
 });
 
@@ -76,6 +84,10 @@ final myMonthlyStatsProvider = FutureProvider.family<MonthlyStats, String>((ref,
       typeDistribution: {},
     );
   }
+
+  final crewRepo = ref.read(crewHomeRepositoryProvider);
+  final crew = await crewRepo.getCrew(crewId);
+  final goal = crew?.settings?.weeklyGoal ?? 3;
 
   final repo = ref.read(statsWorkoutRepositoryProvider);
   final (startDate, endDate) = getMonthRange(today());
@@ -98,7 +110,7 @@ final myMonthlyStatsProvider = FutureProvider.family<MonthlyStats, String>((ref,
   for (final w in workouts) {
     weekWorkouts[w.weekKey] = (weekWorkouts[w.weekKey] ?? 0) + 1;
   }
-  final successfulWeeks = weekWorkouts.values.where((count) => count >= 3).length;
+  final successfulWeeks = weekWorkouts.values.where((count) => count >= goal).length;
 
   return MonthlyStats(
     totalCount: workouts.length,

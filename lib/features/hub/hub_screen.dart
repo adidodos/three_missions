@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/router/router.dart';
+import '../../core/widgets/shared_widgets.dart';
 import 'hub_provider.dart';
 import 'create_crew_dialog.dart';
 
@@ -22,10 +24,16 @@ class HubScreen extends ConsumerWidget {
         title: const Text('Three Missions'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(authRepositoryProvider).signOut();
-            },
+            icon: CircleAvatar(
+              radius: 16,
+              backgroundImage: user?.photoURL != null
+                  ? NetworkImage(user!.photoURL!)
+                  : null,
+              child: user?.photoURL == null
+                  ? const Icon(Icons.person, size: 18)
+                  : null,
+            ),
+            onPressed: () => _showProfileBottomSheet(context, ref, user),
           ),
         ],
       ),
@@ -36,43 +44,6 @@ class HubScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // User info
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundImage: user?.photoURL != null
-                          ? NetworkImage(user!.photoURL!)
-                          : null,
-                      child: user?.photoURL == null
-                          ? const Icon(Icons.person)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.displayName ?? 'User',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            user?.email ?? '',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
             // Actions
             Row(
               children: [
@@ -119,26 +90,13 @@ class HubScreen extends ConsumerWidget {
               ),
               data: (crews) {
                 if (crews.isEmpty) {
-                  return Card(
+                  return const Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.group_off,
-                            size: 48,
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '가입된 크루가 없습니다',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text('크루를 생성하거나 검색해서 가입하세요!'),
-                        ],
+                      padding: EdgeInsets.all(32),
+                      child: EmptyState(
+                        icon: Icons.group_off,
+                        message: '가입된 크루가 없습니다',
+                        submessage: '크루를 생성하거나 검색해서 가입하세요!',
                       ),
                     ),
                   );
@@ -156,7 +114,7 @@ class HubScreen extends ConsumerWidget {
                         ),
                         title: Text(crew.name),
                         subtitle: role != null
-                            ? Text(_roleLabel(role))
+                            ? RoleBadge(role: role)
                             : null,
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => context.push('/crew/${crew.id}'),
@@ -172,15 +130,103 @@ class HubScreen extends ConsumerWidget {
     );
   }
 
-  String _roleLabel(dynamic role) {
-    switch (role.toString()) {
-      case 'MemberRole.owner':
-        return '크루장';
-      case 'MemberRole.admin':
-        return '운영진';
-      default:
-        return '멤버';
-    }
+  void _showProfileBottomSheet(BuildContext context, WidgetRef ref, User? user) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            const SizedBox(height: 8),
+            Container(
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(sheetContext).colorScheme.outline.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Account card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundImage: user?.photoURL != null
+                        ? NetworkImage(user!.photoURL!)
+                        : null,
+                    child: user?.photoURL == null
+                        ? const Icon(Icons.person, size: 28)
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user?.displayName ?? 'User',
+                          style: Theme.of(sheetContext).textTheme.titleMedium,
+                        ),
+                        Text(
+                          user?.email ?? '',
+                          style: Theme.of(sheetContext).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Divider(),
+
+            // Settings
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('설정'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+              },
+            ),
+
+            // Logout
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('로그아웃'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('로그아웃'),
+                    content: const Text('정말 로그아웃하시겠습니까?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('취소'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('로그아웃'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await ref.read(authRepositoryProvider).signOut();
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showCreateCrewDialog(BuildContext context, WidgetRef ref) async {

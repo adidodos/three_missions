@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/models/crew_settings.dart';
+import '../../../core/models/member.dart';
 import '../../../core/router/router.dart';
 import 'crew_home_provider.dart';
 import 'widgets/week_calendar.dart';
@@ -16,6 +18,9 @@ class CrewHomeScreen extends ConsumerWidget {
     final todayWorkoutAsync = ref.watch(todayWorkoutProvider(crewId));
     final memberAsync = ref.watch(crewMembershipProvider(crewId));
 
+    final crew = crewAsync.value;
+    final isSetupComplete = crew?.isSetupComplete ?? false;
+
     return Scaffold(
       appBar: AppBar(
         title: crewAsync.when(
@@ -28,76 +33,204 @@ class CrewHomeScreen extends ConsumerWidget {
           onPressed: () => context.go('/hub'),
         ),
         actions: [
-          // Admin menu
-          if (memberAsync.value?.role.isAdmin == true)
+          if (isSetupComplete && memberAsync.value?.role.isAdmin == true)
             IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () => context.push('/crew/$crewId/manage'),
             ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(todayWorkoutProvider(crewId));
-          ref.invalidate(myWeekWorkoutsProvider(crewId));
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Today status
-            _TodayStatusCard(crewId: crewId),
-            const SizedBox(height: 16),
+      body: crewAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('오류: $e')),
+        data: (crew) {
+          if (crew == null) {
+            return const Center(child: Text('크루를 찾을 수 없습니다'));
+          }
 
-            // Week calendar
-            WeekCalendar(crewId: crewId),
-            const SizedBox(height: 16),
-
-            // Weekly mission status
-            _WeeklyMissionCard(crewId: crewId),
-            const SizedBox(height: 24),
-
-            // Navigation buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => context.push('/crew/$crewId/table'),
-                    icon: const Icon(Icons.table_chart),
-                    label: const Text('주간표'),
+          if (!crew.isSetupComplete) {
+            final isOwner = memberAsync.value?.role == MemberRole.owner;
+            if (isOwner) {
+              return _SetupPrompt(crewId: crewId);
+            }
+            return RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(crewDetailProvider(crewId));
+              },
+              child: ListView(
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.hourglass_empty,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text('크루장이 초기 설정을 진행 중입니다'),
+                          const SizedBox(height: 8),
+                          Text(
+                            '잠시 후 다시 확인해주세요',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(todayWorkoutProvider(crewId));
+              ref.invalidate(myWeekWorkoutsProvider(crewId));
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _TodayStatusCard(crewId: crewId),
+                const SizedBox(height: 16),
+                WeekCalendar(crewId: crewId),
+                const SizedBox(height: 16),
+                _WeeklyMissionCard(crewId: crewId),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/crew/$crewId/table'),
+                        icon: const Icon(Icons.table_chart),
+                        label: const Text('주간표'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/crew/$crewId/stats'),
+                        icon: const Icon(Icons.bar_chart),
+                        label: const Text('내 통계'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => context.push('/crew/$crewId/stats'),
-                    icon: const Icon(Icons.bar_chart),
-                    label: const Text('내 통계'),
+                    onPressed: () => context.push('/crew/$crewId/members'),
+                    icon: const Icon(Icons.group),
+                    label: const Text('크루원 목록'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.push('/crew/$crewId/members'),
-                icon: const Icon(Icons.group),
-                label: const Text('크루원 목록'),
+          );
+        },
+      ),
+      floatingActionButton: !isSetupComplete
+          ? null
+          : todayWorkoutAsync.when(
+              loading: () => null,
+              error: (_, __) => null,
+              data: (workout) => FloatingActionButton.extended(
+                onPressed: () => context.push('/crew/$crewId/workout'),
+                icon: Icon(workout != null ? Icons.edit : Icons.add),
+                label: Text(workout != null ? '인증 수정' : '오늘 인증하기'),
               ),
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: todayWorkoutAsync.when(
-        loading: () => null,
-        error: (_, __) => null,
-        data: (workout) => FloatingActionButton.extended(
-          onPressed: () => context.push('/crew/$crewId/workout'),
-          icon: Icon(workout != null ? Icons.edit : Icons.add),
-          label: Text(workout != null ? '인증 수정' : '오늘 인증하기'),
-        ),
+    );
+  }
+}
+
+class _SetupPrompt extends ConsumerStatefulWidget {
+  final String crewId;
+
+  const _SetupPrompt({required this.crewId});
+
+  @override
+  ConsumerState<_SetupPrompt> createState() => _SetupPromptState();
+}
+
+class _SetupPromptState extends ConsumerState<_SetupPrompt> {
+  int _selectedGoal = 3;
+  bool _isSubmitting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.settings,
+            size: 64,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '크루 초기 설정',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const Text('주간 미션 목표를 설정해주세요'),
+          const SizedBox(height: 32),
+          Text(
+            '주 $_selectedGoal회',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          Slider(
+            value: _selectedGoal.toDouble(),
+            min: 1,
+            max: 7,
+            divisions: 6,
+            label: '$_selectedGoal회',
+            onChanged: (v) => setState(() => _selectedGoal = v.round()),
+          ),
+          const SizedBox(height: 32),
+          FilledButton(
+            onPressed: _isSubmitting ? null : _submit,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('설정 완료'),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    setState(() => _isSubmitting = true);
+    try {
+      final repo = ref.read(crewHomeRepositoryProvider);
+      await repo.updateSettings(
+        widget.crewId,
+        CrewSettings(weeklyGoal: _selectedGoal),
+      );
+      ref.invalidate(crewDetailProvider(widget.crewId));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 }
 
@@ -129,8 +262,8 @@ class _TodayStatusCard extends ConsumerWidget {
                   return Row(
                     children: [
                       Icon(
-                        Icons.close,
-                        color: Theme.of(context).colorScheme.error,
+                        Icons.radio_button_unchecked,
+                        color: Theme.of(context).colorScheme.outline,
                       ),
                       const SizedBox(width: 8),
                       const Text('아직 인증하지 않았습니다'),
@@ -180,6 +313,8 @@ class _WeeklyMissionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workoutsAsync = ref.watch(myWeekWorkoutsProvider(crewId));
+    final crew = ref.watch(crewDetailProvider(crewId)).value;
+    final goal = crew?.settings?.weeklyGoal ?? 3;
 
     return Card(
       child: Padding(
@@ -189,8 +324,8 @@ class _WeeklyMissionCard extends ConsumerWidget {
           error: (e, _) => Text('오류: $e'),
           data: (workouts) {
             final count = workouts.length;
-            final isSuccess = count >= 3;
-            final remaining = 3 - count;
+            final isSuccess = count >= goal;
+            final remaining = goal - count;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,16 +344,16 @@ class _WeeklyMissionCard extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isSuccess
-                            ? Colors.green.shade100
-                            : Colors.orange.shade100,
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.errorContainer,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         isSuccess ? '성공!' : '$remaining회 남음',
                         style: TextStyle(
                           color: isSuccess
-                              ? Colors.green.shade700
-                              : Colors.orange.shade700,
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onErrorContainer,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -227,12 +362,12 @@ class _WeeklyMissionCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 LinearProgressIndicator(
-                  value: (count / 3).clamp(0.0, 1.0),
+                  value: (count / goal).clamp(0.0, 1.0),
                   backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '$count / 3 회 인증',
+                  '$count / $goal 회 인증',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

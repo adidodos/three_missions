@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_provider.dart';
-import '../../../core/models/member.dart';
+import '../../../core/widgets/shared_widgets.dart';
 import '../manage/manage_provider.dart';
 
 class MembersScreen extends ConsumerWidget {
@@ -23,7 +23,10 @@ class MembersScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('오류: $e')),
         data: (members) {
           if (members.isEmpty) {
-            return const Center(child: Text('멤버가 없습니다'));
+            return const EmptyState(
+              icon: Icons.group_off,
+              message: '크루원이 없습니다',
+            );
           }
 
           return ListView.builder(
@@ -50,30 +53,11 @@ class MembersScreen extends ConsumerWidget {
                       Flexible(child: Text(member.displayName)),
                       if (isMe) ...[
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '나',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
-                            ),
-                          ),
-                        ),
+                        const MeBadge(),
                       ],
                     ],
                   ),
-                  subtitle: Text(_roleLabel(member.role)),
+                  subtitle: RoleBadge(role: member.role),
                 ),
               );
             },
@@ -81,16 +65,5 @@ class MembersScreen extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  String _roleLabel(MemberRole role) {
-    switch (role) {
-      case MemberRole.owner:
-        return '크루장';
-      case MemberRole.admin:
-        return '운영진';
-      case MemberRole.member:
-        return '멤버';
-    }
   }
 }

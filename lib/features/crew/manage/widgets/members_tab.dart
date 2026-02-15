@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/auth/auth_provider.dart';
 import '../../../../core/router/router.dart';
 import '../../../../core/models/member.dart';
+import '../../../../core/widgets/shared_widgets.dart';
 import '../manage_provider.dart';
 
 class MembersTab extends ConsumerWidget {
@@ -21,7 +22,10 @@ class MembersTab extends ConsumerWidget {
       error: (e, _) => Center(child: Text('오류: $e')),
       data: (members) {
         if (members.isEmpty) {
-          return const Center(child: Text('멤버가 없습니다'));
+          return const EmptyState(
+            icon: Icons.group_off,
+            message: '멤버가 없습니다',
+          );
         }
 
         return ListView.builder(
@@ -50,27 +54,11 @@ class MembersTab extends ConsumerWidget {
                     Flexible(child: Text(member.displayName)),
                     if (isMe) ...[
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '나',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ),
+                      const MeBadge(),
                     ],
                   ],
                 ),
-                subtitle: Text(_roleLabel(member.role)),
+                subtitle: RoleBadge(role: member.role),
                 trailing: canManage
                     ? IconButton(
                         icon: const Icon(Icons.more_vert),
@@ -85,21 +73,10 @@ class MembersTab extends ConsumerWidget {
     );
   }
 
-  String _roleLabel(MemberRole role) {
-    switch (role) {
-      case MemberRole.owner:
-        return '크루장';
-      case MemberRole.admin:
-        return '운영진';
-      case MemberRole.member:
-        return '멤버';
-    }
-  }
-
   void _showMemberActions(BuildContext context, WidgetRef ref, Member member) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -109,7 +86,7 @@ class MembersTab extends ConsumerWidget {
                   ? '운영진 해제'
                   : '운영진으로 지정'),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final repo = ref.read(manageMemberRepositoryProvider);
                 final newRole = member.role == MemberRole.admin
                     ? MemberRole.member
@@ -118,25 +95,31 @@ class MembersTab extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.block, color: Theme.of(context).colorScheme.error),
+              leading: Icon(Icons.block, color: Theme.of(sheetContext).colorScheme.error),
               title: Text(
                 '추방하기',
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(color: Theme.of(sheetContext).colorScheme.error),
               ),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final confirmed = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
+                  builder: (ctx) => AlertDialog(
                     title: const Text('멤버 추방'),
-                    content: Text('${member.displayName}님을 추방하시겠습니까?'),
+                    content: Text(
+                      '${member.displayName}님을 정말 추방하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
+                    ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, false),
+                        onPressed: () => Navigator.pop(ctx, false),
                         child: const Text('취소'),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(ctx).colorScheme.error,
+                          foregroundColor: Theme.of(ctx).colorScheme.onError,
+                        ),
                         child: const Text('추방'),
                       ),
                     ],
