@@ -39,16 +39,7 @@ class MembersTab extends ConsumerWidget {
 
             return Card(
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: member.photoUrl != null
-                      ? NetworkImage(member.photoUrl!)
-                      : null,
-                  child: member.photoUrl == null
-                      ? Text(member.displayName.isNotEmpty
-                          ? member.displayName[0]
-                          : '?')
-                      : null,
-                ),
+                leading: ProfileAvatar(photoUrl: member.photoUrl),
                 title: Row(
                   children: [
                     Flexible(child: Text(member.displayName)),

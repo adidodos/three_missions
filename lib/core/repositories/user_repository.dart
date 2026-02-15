@@ -21,6 +21,10 @@ class UserRepository {
     await _usersRef.doc(user.uid).update(user.toFirestoreUpdate());
   }
 
+  Future<void> updatePhotoUrl(String uid, String photoUrl) async {
+    await _usersRef.doc(uid).update({'photoUrl': photoUrl});
+  }
+
   Future<void> ensureUser(UserProfile user) async {
     final doc = await _usersRef.doc(user.uid).get();
     if (!doc.exists) {

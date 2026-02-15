@@ -42,6 +42,11 @@ class AuthRepository {
     }
   }
 
+  Future<void> updatePhotoURL(String url) async {
+    await _auth.currentUser?.updatePhotoURL(url);
+    await _auth.currentUser?.reload();
+  }
+
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();

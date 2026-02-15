@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/date_keys.dart';
 import '../../../core/utils/mission_status.dart';
+import '../../../core/widgets/shared_widgets.dart';
 import '../home/crew_home_provider.dart';
 import 'table_provider.dart';
 import 'workout_detail_dialog.dart';
@@ -189,20 +190,7 @@ class CrewTableScreen extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundImage: member.photoUrl != null
-                        ? NetworkImage(member.photoUrl!)
-                        : null,
-                    child: member.photoUrl == null
-                        ? Text(
-                            member.displayName.isNotEmpty
-                                ? member.displayName[0]
-                                : '?',
-                            style: const TextStyle(fontSize: 12),
-                          )
-                        : null,
-                  ),
+                  ProfileAvatar(photoUrl: member.photoUrl, radius: 14),
                   const SizedBox(width: 8),
                   Text(
                     member.displayName,

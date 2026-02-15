@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/member.dart';
 
 class MemberRepository {
-  final _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  MemberRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> _membersRef(String crewId) =>
       _firestore.collection('crews').doc(crewId).collection('members');
@@ -53,5 +56,18 @@ class MemberRepository {
 
   Future<void> removeMember(String crewId, String uid) async {
     await _membersRef(crewId).doc(uid).delete();
+  }
+
+  Future<void> updatePhotoUrlInAllCrews(String uid, String photoUrl) async {
+    final memberDocs = await _firestore
+        .collectionGroup('members')
+        .where('uid', isEqualTo: uid)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in memberDocs.docs) {
+      batch.update(doc.reference, {'photoUrl': photoUrl});
+    }
+    await batch.commit();
   }
 }

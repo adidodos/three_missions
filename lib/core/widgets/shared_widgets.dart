@@ -1,5 +1,28 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/member.dart';
+
+/// 프로필 아바타 (사진 or 🏋️ 기본 아이콘).
+class ProfileAvatar extends StatelessWidget {
+  final String? photoUrl;
+  final double radius;
+
+  const ProfileAvatar({super.key, this.photoUrl, this.radius = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    if (photoUrl != null && photoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: CachedNetworkImageProvider(photoUrl!),
+      );
+    }
+    return CircleAvatar(
+      radius: radius,
+      child: Icon(Icons.fitness_center, size: radius),
+    );
+  }
+}
 
 /// 역할 문자열 반환.
 String roleLabel(MemberRole role) => switch (role) {

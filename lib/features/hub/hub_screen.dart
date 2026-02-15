@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/auth/auth_provider.dart';
+import '../../core/repositories/member_repository.dart';
+import '../../core/repositories/storage_repository.dart';
 import '../../core/router/router.dart';
 import '../../core/widgets/shared_widgets.dart';
 import 'hub_provider.dart';
@@ -24,15 +29,7 @@ class HubScreen extends ConsumerWidget {
         title: const Text('Three Missions'),
         actions: [
           IconButton(
-            icon: CircleAvatar(
-              radius: 16,
-              backgroundImage: user?.photoURL != null
-                  ? NetworkImage(user!.photoURL!)
-                  : null,
-              child: user?.photoURL == null
-                  ? const Icon(Icons.person, size: 18)
-                  : null,
-            ),
+            icon: ProfileAvatar(photoUrl: user?.photoURL, radius: 16),
             onPressed: () => _showProfileBottomSheet(context, ref, user),
           ),
         ],
@@ -154,14 +151,32 @@ class HubScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundImage: user?.photoURL != null
-                        ? NetworkImage(user!.photoURL!)
-                        : null,
-                    child: user?.photoURL == null
-                        ? const Icon(Icons.person, size: 28)
-                        : null,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _changeProfilePhoto(context, ref, user);
+                    },
+                    child: Stack(
+                      children: [
+                        ProfileAvatar(photoUrl: user?.photoURL, radius: 24),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(sheetContext).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 14,
+                              color: Theme.of(sheetContext).colorScheme.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -227,6 +242,72 @@ class HubScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _changeProfilePhoto(BuildContext context, WidgetRef ref, User? user) async {
+    if (user == null) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source);
+    if (picked == null) return;
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final file = File(picked.path);
+      final storageRepo = StorageRepository();
+      final url = await storageRepo.uploadProfilePhoto(user.uid, file);
+
+      if (url == null) throw Exception('업로드 실패');
+
+      final authRepo = ref.read(authRepositoryProvider);
+      await authRepo.updatePhotoURL(url);
+
+      final userRepo = ref.read(userRepositoryProvider);
+      await userRepo.updatePhotoUrl(user.uid, url);
+
+      final memberRepo = MemberRepository();
+      await memberRepo.updatePhotoUrlInAllCrews(user.uid, url);
+
+      ref.invalidate(authStateProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('프로필 사진 변경 실패: $e')),
+        );
+      }
+    } finally {
+      if (context.mounted) Navigator.pop(context);
+    }
   }
 
   Future<void> _showCreateCrewDialog(BuildContext context, WidgetRef ref) async {

@@ -139,16 +139,7 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundImage: widget.request.photoUrl != null
-                      ? NetworkImage(widget.request.photoUrl!)
-                      : null,
-                  child: widget.request.photoUrl == null
-                      ? Text(widget.request.displayName.isNotEmpty
-                          ? widget.request.displayName[0]
-                          : '?')
-                      : null,
-                ),
+                ProfileAvatar(photoUrl: widget.request.photoUrl),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
