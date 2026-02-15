@@ -4,7 +4,10 @@ import '../models/crew_settings.dart';
 import '../models/member.dart';
 
 class CrewRepository {
-  final _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  CrewRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _crewsRef =>
       _firestore.collection('crews');
