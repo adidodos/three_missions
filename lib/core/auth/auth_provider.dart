@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_repository.dart';
@@ -14,6 +15,21 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 final currentUserProvider = Provider<User?>((ref) {
   return ref.watch(authStateProvider).value;
+});
+
+final firestoreProvider = Provider<FirebaseFirestore>((ref) {
+  return FirebaseFirestore.instance;
+});
+
+/// Admin check cached in provider state.
+/// Admin condition: /admins/{uid} document exists.
+final isAdminProvider = FutureProvider<bool>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return false;
+
+  final firestore = ref.watch(firestoreProvider);
+  final adminDoc = await firestore.collection('admins').doc(user.uid).get();
+  return adminDoc.exists;
 });
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {

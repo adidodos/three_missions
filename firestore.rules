@@ -11,6 +11,11 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
+    function isGlobalAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     // Get member document for current user in a crew
     function getMember(crewId) {
       return get(/databases/$(database)/documents/crews/$(crewId)/members/$(request.auth.uid));
@@ -45,6 +50,32 @@ service cloud.firestore {
       // Users can read/write their own profile
       allow read: if isSignedIn();
       allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // ==================
+    // /admins/{uid}
+    // ==================
+    match /admins/{uid} {
+      // A user can only read their own admin marker document.
+      allow read: if isOwner(uid);
+      // Only admins can manage admin documents.
+      allow create, update, delete: if isGlobalAdmin();
+    }
+
+    // ==================
+    // /inquiries/{docId}
+    // ==================
+    match /inquiries/{docId} {
+      // Users can create inquiries
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+
+      // Users can read their own inquiries, admins can read all
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isGlobalAdmin());
+
+      // Only admins can update (answer)
+      allow update: if isGlobalAdmin();
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isGlobalAdmin());
     }
 
     // ==================
@@ -75,7 +106,10 @@ service cloud.firestore {
               && getAfter(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid == request.auth.uid
               && request.resource.data.role == 'OWNER');
         allow update: if isAdmin(crewId) && resource.data.role != 'OWNER';
-        allow delete: if isAdmin(crewId) && resource.data.role != 'OWNER';
+        // Users can delete their own member doc (leave crew / account deletion)
+        // Admins can delete non-owner members (kick)
+        allow delete: if (isSignedIn() && uid == request.auth.uid)
+          || (isAdmin(crewId) && resource.data.role != 'OWNER');
       }
 
       // ==================
@@ -93,6 +127,9 @@ service cloud.firestore {
 
         // Admins can update requests (approve/reject)
         allow update: if isAdmin(crewId);
+
+        // User can delete their own request (for account deletion)
+        allow delete: if isOwner(uid);
       }
 
       // ==================
