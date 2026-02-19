@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +10,9 @@ import '../../../core/auth/auth_provider.dart';
 import '../../../core/repositories/storage_repository.dart';
 import '../../../core/models/workout.dart';
 import '../../../core/utils/date_keys.dart';
+import '../../../core/utils/image_utils.dart';
+import '../stats/stats_provider.dart';
+import '../table/table_provider.dart';
 import 'crew_home_provider.dart';
 
 final storageRepositoryProvider = Provider<StorageRepository>((ref) {
@@ -32,6 +37,8 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
   String? _existingPhotoUrl;
   bool _isLoading = false;
   bool _isEdit = false;
+  bool _isStamping = false;
+  String? _errorMessage;
 
   final _workoutTypes = ['러닝', '헬스', '수영', '자전거', '등산', '요가', '홈트', '기타'];
 
@@ -66,34 +73,77 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1080,
-      maxHeight: 1080,
-      imageQuality: 85,
-    );
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
 
-    if (picked != null) {
-      setState(() {
-        _imageFile = File(picked.path);
-      });
+      if (picked != null && mounted) {
+        setState(() {
+          _imageFile = File(picked.path);
+        });
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final message = e.code == 'photo_access_denied'
+          ? '사진 접근 권한이 필요합니다. 설정에서 허용해주세요.'
+          : '갤러리를 열 수 없습니다: ${e.message}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
   Future<void> _takePhoto() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: 1080,
-      maxHeight: 1080,
-      imageQuality: 85,
-    );
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
 
-    if (picked != null) {
-      setState(() {
-        _imageFile = File(picked.path);
-      });
+      if (picked != null) {
+        final rawFile = File(picked.path);
+
+        // Show stamping indicator
+        setState(() {
+          _isStamping = true;
+          _imageFile = rawFile; // Show raw preview immediately
+        });
+
+        // Stamp timestamp onto the image
+        final stamped = await stampTimestamp(rawFile, DateTime.now());
+        if (mounted) {
+          setState(() {
+            _imageFile = stamped ?? rawFile;
+            _isStamping = false;
+          });
+          if (stamped == null) {
+            debugPrint('[WorkoutForm] stampTimestamp returned null, using raw photo');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('타임스탬프 삽입에 실패했습니다. 원본 사진을 사용합니다.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(() => _isStamping = false);
+      final message = e.code == 'camera_access_denied'
+          ? '카메라 권한이 필요합니다. 설정에서 허용해주세요.'
+          : '카메라를 사용할 수 없습니다: ${e.message}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
@@ -108,7 +158,10 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final user = ref.read(currentUserProvider);
@@ -126,16 +179,6 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
           todayKey(),
           _imageFile!,
         );
-
-        if (result == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('사진 업로드에 실패했습니다')),
-            );
-          }
-          return;
-        }
-
         photoUrl = result.url;
         photoPath = result.path;
       }
@@ -159,13 +202,44 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
       }
 
       if (mounted) {
+        // Invalidate all related providers for immediate UI refresh
+        ref.invalidate(myWeekWorkoutsProvider(widget.crewId));
+        ref.invalidate(selectedWeekWorkoutsProvider(widget.crewId));
+        ref.invalidate(myWeeklyStatsProvider(widget.crewId));
+        ref.invalidate(myMonthlyStatsProvider(widget.crewId));
         context.pop();
       }
+    } on UploadException catch (e) {
+      // Storage upload failed – already has code/path in debugMessage
+      debugPrint('[WorkoutForm] UploadException: ${e.debugMessage}');
+      if (mounted) _setError(e.userMessage);
+    } on FirebaseException catch (e) {
+      // Firestore write failed – log code / message / plugin (plugin = service name)
+      debugPrint(
+        '[WorkoutForm] FirebaseException: '
+        'code=${e.code}, message=${e.message}, plugin=${e.plugin}',
+      );
+      final msg = switch (e.code) {
+        'permission-denied' =>
+          '권한이 없습니다. 크루 멤버 상태를 확인해주세요.',
+        'unavailable' || 'deadline-exceeded' =>
+          '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.',
+        'not-found' =>
+          '저장 실패 (문서 없음). 잠시 후 다시 시도해주세요.',
+        _ =>
+          '저장 실패 (${e.code}). 잠시 후 다시 시도해주세요.',
+      };
+      if (mounted) _setError(msg);
+    } catch (e, stack) {
+      debugPrint('[WorkoutForm] unexpected error: $e\n$stack');
+      if (mounted) _setError('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _setError(String message) {
+    setState(() => _errorMessage = message);
   }
 
   @override
@@ -191,6 +265,16 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ── Inline error banner ────────────────────────────────────────
+            if (_errorMessage != null) ...[
+              _ErrorBanner(
+                message: _errorMessage!,
+                onRetry: _save,
+                onDismiss: () => setState(() => _errorMessage = null),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Photo section
             Text(
               '인증 사진 ${_isEdit ? '' : '(필수)'}',
@@ -271,6 +355,28 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
               fit: BoxFit.cover,
             ),
           ),
+          if (_isStamping)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black38,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 8),
+                      Text(
+                        '타임스탬프 삽입 중...',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: 8,
             right: 8,
@@ -347,6 +453,59 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
                 label: const Text('갤러리'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Persistent inline error banner shown when upload or Firestore write fails.
+/// Stays visible until the user retries (successfully) or dismisses manually.
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  const _ErrorBanner({
+    required this.message,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: cs.error, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: cs.error,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: onRetry,
+            child: const Text('재시도'),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, size: 18, color: cs.error),
+            onPressed: onDismiss,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),

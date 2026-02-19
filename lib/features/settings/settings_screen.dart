@@ -1,12 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/auth/auth_provider.dart';
+import '../../core/models/user_profile.dart';
 import '../../core/theme/theme_provider.dart';
+import '../../core/widgets/shared_widgets.dart';
 import 'edit_profile_dialog.dart';
 import 'delete_account_dialog.dart';
 
@@ -34,11 +35,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    final userProfile = ref.watch(userProfileProvider).value;
     final themeMode = ref.watch(themeModeProvider);
     final appInfoAsync = ref.watch(_appInfoProvider);
     final isAdminAsync = ref.watch(isAdminProvider);
     final canShowDeveloperMenus =
-        kDebugMode ||
         isAdminAsync.maybeWhen(data: (isAdmin) => isAdmin, orElse: () => false);
 
     return Scaffold(
@@ -64,11 +65,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // --- 계정 ---
           _SectionHeader(title: '계정'),
           ListTile(
-            leading: const Icon(Icons.person_outline),
+            leading: ProfileAvatar(
+              photoUrl: userProfile?.photoUrl,
+              hasCustomPhoto: userProfile?.hasCustomPhoto ?? false,
+            ),
             title: const Text('프로필 수정'),
             subtitle: Text(user?.displayName ?? ''),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showEditProfileDialog(context, user),
+            onTap: () => _showEditProfileDialog(context, user, userProfile),
           ),
           ListTile(
             leading: Icon(
@@ -183,12 +187,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showEditProfileDialog(BuildContext context, User? user) {
+  void _showEditProfileDialog(
+    BuildContext context,
+    User? user,
+    UserProfile? userProfile,
+  ) async {
     if (user == null) return;
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (_) => EditProfileDialog(user: user),
+      builder: (_) => EditProfileDialog(user: user, userProfile: userProfile),
     );
+    // Refresh auth state only after dialog is closed with a successful save
+    if (result == true && mounted) {
+      ref.invalidate(authStateProvider);
+    }
   }
 
   void _showDeleteAccountDialog(BuildContext context, User? user) {

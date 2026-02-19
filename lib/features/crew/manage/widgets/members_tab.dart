@@ -39,7 +39,11 @@ class MembersTab extends ConsumerWidget {
 
             return Card(
               child: ListTile(
-                leading: ProfileAvatar(photoUrl: member.photoUrl),
+                leading: ProfileAvatar(
+                  photoUrl: member.photoUrl,
+                  // member.photoUrl is only set via custom upload → always custom
+                  hasCustomPhoto: member.photoUrl != null,
+                ),
                 title: Row(
                   children: [
                     Flexible(child: Text(member.displayName)),
@@ -65,12 +69,49 @@ class MembersTab extends ConsumerWidget {
   }
 
   void _showMemberActions(BuildContext context, WidgetRef ref, Member member) {
+    final currentUser = ref.read(currentUserProvider);
+
     showModalBottomSheet(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('크루장 위임'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('크루장 위임'),
+                    content: Text(
+                      '${member.displayName}님에게 크루장을 위임하시겠습니까?\n위임 후 본인은 일반 멤버가 됩니다.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('취소'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('위임'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true && currentUser != null) {
+                  final crewRepo = ref.read(manageCrewRepositoryProvider);
+                  await crewRepo.transferOwnership(
+                    crewId,
+                    currentUser.uid,
+                    member.uid,
+                  );
+                }
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.admin_panel_settings),
               title: Text(member.role == MemberRole.admin
@@ -117,9 +158,11 @@ class MembersTab extends ConsumerWidget {
                   ),
                 );
 
-                if (confirmed == true) {
-                  final repo = ref.read(manageMemberRepositoryProvider);
-                  await repo.banMember(crewId, member.uid);
+                if (confirmed == true && currentUser != null) {
+                  final memberRepo = ref.read(manageMemberRepositoryProvider);
+                  await memberRepo.banMember(crewId, member.uid);
+                  // joinRequest는 여기서 건드리지 않음.
+                  // 재신청 시 crew_search_screen에서 기존 요청 삭제 후 새로 생성.
                 }
               },
             ),

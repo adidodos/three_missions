@@ -7,12 +7,21 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Workout photos: crews/{crewId}/workouts/{uid}/{dateKey}.jpg
-    match /crews/{crewId}/workouts/{uid}/{fileName} {
-      // Only the owner can upload/update their photos
-      allow write: if request.auth != null && request.auth.uid == uid;
+    // Default avatar: readable by all signed-in users (admin uploads via Console)
+    // Path: defaults/default_avatar.png
+    // Write is intentionally not allowed here (admin-only via Firebase Console).
+    match /defaults/{fileName} {
+      allow read: if request.auth != null;
+    }
 
-      // All authenticated users can read (for crew table)
+    // Workout proof photos: crews/{crewId}/proofs/{uid}/{dateKey}.jpg
+    // Rule: uploader must be the owner uid AND a crew member
+    match /crews/{crewId}/proofs/{uid}/{fileName} {
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && firestore.exists(/databases/(default)/documents/crews/$(crewId)/members/$(request.auth.uid));
+
+      // All authenticated users can read (for crew table / proof display)
       allow read: if request.auth != null;
     }
   }

@@ -2,21 +2,34 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/member.dart';
 
-/// 프로필 아바타 (사진 or 🏋️ 기본 아이콘).
+/// 프로필 아바타.
+///
+/// [hasCustomPhoto]가 true일 때만 [photoUrl]을 표시하고,
+/// 그 외에는 역도 기본 아이콘(🏋️)을 보여준다.
+/// Google photoURL은 절대 사용하지 않는 정책 – [hasCustomPhoto] 게이트로 보장.
 class ProfileAvatar extends StatelessWidget {
   final String? photoUrl;
+  /// true = 사용자가 직접 업로드한 커스텀 사진 존재.
+  /// false (기본값) = 기본 아바타(역도 아이콘) 표시.
+  final bool hasCustomPhoto;
   final double radius;
 
-  const ProfileAvatar({super.key, this.photoUrl, this.radius = 20});
+  const ProfileAvatar({
+    super.key,
+    this.photoUrl,
+    this.hasCustomPhoto = false,
+    this.radius = 20,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (photoUrl != null && photoUrl!.isNotEmpty) {
+    if (hasCustomPhoto && photoUrl != null && photoUrl!.isNotEmpty) {
       return CircleAvatar(
         radius: radius,
         backgroundImage: CachedNetworkImageProvider(photoUrl!),
       );
     }
+    // 기본 아바타: 역도(fitness_center) 아이콘
     return CircleAvatar(
       radius: radius,
       child: Icon(Icons.fitness_center, size: radius),

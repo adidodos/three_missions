@@ -60,12 +60,12 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
       final user = ref.read(currentUserProvider);
       if (user == null) return;
 
-      // Approve request
+      // Read all providers before async gaps — the widget may be
+      // removed from the tree once the request status changes, which
+      // would invalidate ref.
       final requestRepo = ref.read(manageRequestRepositoryProvider);
-      await requestRepo.approveRequest(widget.crewId, widget.request.uid, user.uid);
-
-      // Add as member
       final memberRepo = ref.read(manageMemberRepositoryProvider);
+
       final member = Member(
         uid: widget.request.uid,
         displayName: widget.request.displayName,
@@ -73,11 +73,23 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
         role: MemberRole.member,
         joinedAt: DateTime.now(),
       );
+
+      // Add as member first, then approve request.
+      // This way, if addMember fails the request stays pending and can
+      // be retried.  If we approved first, the card disappears and the
+      // member is never created.
       await memberRepo.addMember(widget.crewId, member);
+      await requestRepo.approveRequest(widget.crewId, widget.request.uid, user.uid);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${widget.request.displayName}님을 승인했습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('승인 처리 중 오류가 발생했습니다: $e')),
         );
       }
     } finally {
@@ -139,7 +151,11 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
           children: [
             Row(
               children: [
-                ProfileAvatar(photoUrl: widget.request.photoUrl),
+                ProfileAvatar(
+                  photoUrl: widget.request.photoUrl,
+                  // join-request photoUrl is only set from existing custom photo
+                  hasCustomPhoto: widget.request.photoUrl != null,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

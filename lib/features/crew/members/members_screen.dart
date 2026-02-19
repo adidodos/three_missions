@@ -38,7 +38,10 @@ class MembersScreen extends ConsumerWidget {
 
               return Card(
                 child: ListTile(
-                  leading: ProfileAvatar(photoUrl: member.photoUrl),
+                  leading: ProfileAvatar(
+                    photoUrl: member.photoUrl,
+                    hasCustomPhoto: member.photoUrl != null,
+                  ),
                   title: Row(
                     children: [
                       Flexible(child: Text(member.displayName)),

@@ -190,7 +190,11 @@ class CrewTableScreen extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ProfileAvatar(photoUrl: member.photoUrl, radius: 14),
+                  ProfileAvatar(
+                    photoUrl: member.photoUrl,
+                    hasCustomPhoto: member.photoUrl != null,
+                    radius: 14,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     member.displayName,

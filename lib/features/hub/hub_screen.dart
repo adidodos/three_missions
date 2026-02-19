@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/auth/auth_provider.dart';
-import '../../core/repositories/member_repository.dart';
+import '../../core/models/user_profile.dart';
+import '../../core/models/join_request.dart';
 import '../../core/repositories/storage_repository.dart';
 import '../../core/router/router.dart';
+import '../crew/home/workout_form_screen.dart';
 import '../../core/widgets/shared_widgets.dart';
 import 'hub_provider.dart';
 import 'create_crew_dialog.dart';
@@ -20,6 +22,8 @@ class HubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final crewsAsync = ref.watch(myCrewsProvider);
+    final joinRequestsAsync = ref.watch(myJoinRequestsProvider);
+    final userProfile = ref.watch(userProfileProvider).value;
 
     // Ensure user profile exists
     ref.watch(ensureUserProfileProvider);
@@ -29,14 +33,19 @@ class HubScreen extends ConsumerWidget {
         title: const Text('Three Missions'),
         actions: [
           IconButton(
-            icon: ProfileAvatar(photoUrl: user?.photoURL, radius: 16),
-            onPressed: () => _showProfileBottomSheet(context, ref, user),
+            icon: ProfileAvatar(
+              photoUrl: userProfile?.photoUrl,
+              hasCustomPhoto: userProfile?.hasCustomPhoto ?? false,
+              radius: 16,
+            ),
+            onPressed: () => _showProfileBottomSheet(context, ref, user, userProfile),
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(myCrewsProvider);
+          ref.invalidate(myJoinRequestsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -121,13 +130,83 @@ class HubScreen extends ConsumerWidget {
                 );
               },
             ),
+
+            // Join requests section
+            joinRequestsAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (requests) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
+                    Text(
+                      '가입 요청',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (requests.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Text(
+                              '가입신청한 크루 없음',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ...requests.map((item) {
+                      final isPending = item.request.status == RequestStatus.pending;
+                      final isRejected = item.request.status == RequestStatus.rejected;
+
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isRejected
+                                ? Theme.of(context).colorScheme.errorContainer
+                                : null,
+                            child: Icon(
+                              isPending ? Icons.hourglass_top : Icons.block,
+                              color: isRejected
+                                  ? Theme.of(context).colorScheme.error
+                                  : null,
+                            ),
+                          ),
+                          title: Text(item.crew.name),
+                          subtitle: Text(
+                            isPending ? '승인 대기 중' : '거절됨',
+                            style: TextStyle(
+                              color: isRejected
+                                  ? Theme.of(context).colorScheme.error
+                                  : null,
+                            ),
+                          ),
+                          trailing: isRejected
+                              ? TextButton(
+                                  onPressed: () => _reapplyJoinRequest(context, ref, item.crew.id, item.request),
+                                  child: const Text('재가입'),
+                                )
+                              : null,
+                        ),
+                      );
+                    }),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _showProfileBottomSheet(BuildContext context, WidgetRef ref, User? user) {
+  void _showProfileBottomSheet(BuildContext context, WidgetRef ref, User? user, UserProfile? userProfile) {
     showModalBottomSheet(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -158,7 +237,11 @@ class HubScreen extends ConsumerWidget {
                     },
                     child: Stack(
                       children: [
-                        ProfileAvatar(photoUrl: user?.photoURL, radius: 24),
+                        ProfileAvatar(
+                          photoUrl: userProfile?.photoUrl,
+                          hasCustomPhoto: userProfile?.hasCustomPhoto ?? false,
+                          radius: 24,
+                        ),
                         Positioned(
                           bottom: 0,
                           right: 0,
@@ -206,6 +289,7 @@ class HubScreen extends ConsumerWidget {
               title: const Text('설정'),
               onTap: () {
                 Navigator.pop(sheetContext);
+                context.push('/settings');
               },
             ),
 
@@ -271,10 +355,21 @@ class HubScreen extends ConsumerWidget {
     if (source == null) return;
 
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source);
+    final picked = await picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
     if (picked == null) return;
 
     if (!context.mounted) return;
+
+    // Read providers before showing dialog (widget stays mounted)
+    final storageRepo = ref.read(storageRepositoryProvider);
+    final authRepo = ref.read(authRepositoryProvider);
+    final userRepo = ref.read(userRepositoryProvider);
+    final memberRepo = ref.read(memberRepositoryProvider);
 
     showDialog(
       context: context,
@@ -284,21 +379,18 @@ class HubScreen extends ConsumerWidget {
 
     try {
       final file = File(picked.path);
-      final storageRepo = StorageRepository();
       final url = await storageRepo.uploadProfilePhoto(user.uid, file);
 
-      if (url == null) throw Exception('업로드 실패');
-
-      final authRepo = ref.read(authRepositoryProvider);
       await authRepo.updatePhotoURL(url);
-
-      final userRepo = ref.read(userRepositoryProvider);
       await userRepo.updatePhotoUrl(user.uid, url);
-
-      final memberRepo = MemberRepository();
       await memberRepo.updatePhotoUrlInAllCrews(user.uid, url);
 
-      ref.invalidate(authStateProvider);
+    } on UploadException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.userMessage)),
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -307,6 +399,46 @@ class HubScreen extends ConsumerWidget {
       }
     } finally {
       if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _reapplyJoinRequest(BuildContext context, WidgetRef ref, String crewId, JoinRequest request) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('재가입 요청'),
+        content: const Text('이 크루에 다시 가입 요청을 보내시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('요청'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      final repo = ref.read(hubJoinRequestRepositoryProvider);
+      await repo.reapplyRequest(crewId, request);
+      ref.invalidate(myJoinRequestsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('가입 요청을 다시 보냈습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('요청 실패: $e')),
+        );
+      }
     }
   }
 
