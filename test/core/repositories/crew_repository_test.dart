@@ -77,7 +77,7 @@ void main() {
       expect(crewDoc.exists, false);
     });
 
-    test('삭제 후 getMyCrews에서 조회되지 않는다', () async {
+    test('삭제 후 watchMyCrews에서 조회되지 않는다', () async {
       // Arrange
       final crewRef = fakeFirestore.collection('crews').doc('crew3');
       await crewRef.set({
@@ -94,14 +94,14 @@ void main() {
       });
 
       // 삭제 전: 조회 가능
-      final crewsBefore = await repo.getMyCrews('user1');
+      final crewsBefore = await repo.watchMyCrews('user1').first;
       expect(crewsBefore.length, 1);
 
       // Act
       await repo.deleteCrew('crew3');
 
       // Assert: 더 이상 조회되지 않음
-      final crewsAfter = await repo.getMyCrews('user1');
+      final crewsAfter = await repo.watchMyCrews('user1').first;
       expect(crewsAfter.length, 0);
     });
   });

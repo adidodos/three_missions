@@ -1,8 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/repositories/crew_repository.dart';
 import '../../../core/repositories/member_repository.dart';
 import '../../../core/repositories/join_request_repository.dart';
 import '../../../core/models/member.dart';
 import '../../../core/models/join_request.dart';
+
+final manageCrewRepositoryProvider = Provider<CrewRepository>((ref) {
+  return CrewRepository();
+});
 
 final manageMemberRepositoryProvider = Provider<MemberRepository>((ref) {
   return MemberRepository();

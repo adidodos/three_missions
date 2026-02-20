@@ -36,7 +36,13 @@ final myMembershipProvider = FutureProvider.family<Member?, String>((ref, crewId
   if (user == null) return null;
 
   final repo = ref.read(joinMemberRepositoryProvider);
-  return await repo.getMember(crewId, user.uid);
+  try {
+    return await repo.getMember(crewId, user.uid);
+  } catch (e) {
+    // Non-members get permission-denied when querying membership doc
+    debugPrint('myMembershipProvider: $e');
+    return null;
+  }
 });
 
 final myRequestProvider = StreamProvider.family<JoinRequest?, String>((ref, crewId) {

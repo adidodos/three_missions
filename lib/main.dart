@@ -5,7 +5,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
-import 'core/auth/auth_provider.dart';
 import 'core/router/router.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/theme_provider.dart';
@@ -35,7 +34,6 @@ class ThreeMissionsApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(isAdminProvider);
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
 

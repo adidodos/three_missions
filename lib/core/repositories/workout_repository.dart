@@ -78,4 +78,25 @@ class WorkoutRepository {
   Future<void> deleteWorkout(String crewId, String workoutId) async {
     await _workoutsRef(crewId).doc(workoutId).delete();
   }
+
+  /// Delete all workouts for a user in a crew. Returns photoPath list for Storage cleanup.
+  Future<List<String>> removeUserWorkoutsFromCrew(String crewId, String uid) async {
+    final snapshot = await _workoutsRef(crewId)
+        .where('uid', isEqualTo: uid)
+        .get();
+
+    if (snapshot.docs.isEmpty) return [];
+
+    final photoPaths = <String>[];
+    final batch = _firestore.batch();
+
+    for (final doc in snapshot.docs) {
+      final photoPath = doc.data()['photoPath'] as String?;
+      if (photoPath != null) photoPaths.add(photoPath);
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+    return photoPaths;
+  }
 }

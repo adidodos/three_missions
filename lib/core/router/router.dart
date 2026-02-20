@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,28 +18,57 @@ import '../../features/crew/table/crew_table_screen.dart';
 import '../../features/crew/stats/stats_screen.dart';
 import '../../features/crew/manage/manage_screen.dart';
 import '../../features/crew/members/members_screen.dart';
+import '../../features/settings/settings_screen.dart';
+import '../../features/settings/inquiry/inquiry_screen.dart';
+import '../../features/settings/inquiry/inquiry_admin_screen.dart';
+import '../../features/settings/neighborhood/neighborhood_screen.dart';
 
 final memberRepositoryProvider = Provider<MemberRepository>((ref) {
   return MemberRepository();
 });
 
-/// Provider to check if current user is a member of a crew
+/// Provider to check if current user is a member of a crew.
+/// Watches [currentUidProvider] (a String?) instead of [currentUserProvider]
+/// so it does NOT re-execute when Firebase re-emits the same user as a new
+/// object (e.g. on app resume from camera). This keeps [CrewMembershipGuard]
+/// stable while the camera/gallery picker is active.
 final crewMembershipProvider = FutureProvider.family<Member?, String>((ref, crewId) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return null;
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return null;
 
   final repo = ref.read(memberRepositoryProvider);
-  return await repo.getMember(crewId, user.uid);
+  return await repo.getMember(crewId, uid);
 });
 
+/// Bridges Riverpod auth stream → GoRouter refreshListenable without
+/// recreating the GoRouter instance on every auth event.
+class _AuthNotifier extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _sub;
+
+  _AuthNotifier(Ref ref) {
+    _sub = ref.read(authRepositoryProvider).authStateChanges.listen((_) {
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final authNotifier = _AuthNotifier(ref);
+  ref.onDispose(authNotifier.dispose);
 
   return GoRouter(
     initialLocation: '/hub',
     debugLogDiagnostics: true,
+    refreshListenable: authNotifier,
     redirect: (context, state) {
-      final isLoggedIn = authState.value != null;
+      final user = ref.read(authRepositoryProvider).currentUser;
+      final isLoggedIn = user != null;
       final isLoggingIn = state.matchedLocation == '/login';
 
       // Not logged in -> go to login
@@ -60,6 +91,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/hub',
         builder: (context, state) => const HubScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/inquiry',
+        builder: (context, state) => const InquiryScreen(),
+      ),
+      GoRoute(
+        path: '/settings/inquiry/admin',
+        builder: (context, state) => const InquiryAdminScreen(),
+      ),
+      GoRoute(
+        path: '/settings/neighborhood',
+        builder: (context, state) => const NeighborhoodScreen(),
       ),
       GoRoute(
         path: '/crew/search',
@@ -138,9 +185,17 @@ class CrewMembershipGuard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
     final memberAsync = ref.watch(crewMembershipProvider(crewId));
     final currentPath = GoRouterState.of(context).matchedLocation;
     final isPendingPage = currentPath.endsWith('/pending');
+
+    // Auth is still loading — don't redirect yet
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return memberAsync.when(
       loading: () => const Scaffold(
@@ -151,6 +206,7 @@ class CrewMembershipGuard extends ConsumerWidget {
       ),
       data: (member) {
         // Not a member and not on pending page -> redirect to pending
+        // (user != null is guaranteed above, so this is a genuine non-member case)
         if (member == null && !isPendingPage) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             context.go('/crew/$crewId/pending');

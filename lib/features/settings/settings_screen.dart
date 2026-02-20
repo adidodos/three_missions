@@ -100,6 +100,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const Divider(),
 
+          // --- 동네 ---
+          _SectionHeader(title: '동네'),
+          ListTile(
+            leading: const Icon(Icons.location_on_outlined),
+            title: const Text('내 동네 설정'),
+            subtitle: (userProfile?.hasLocation == true)
+                ? Text('${userProfile?.sido} ${userProfile?.sigungu} ${userProfile?.dong}')
+                : const Text('동네를 설정하면 내 지역 크루를 찾을 수 있어요'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/neighborhood'),
+          ),
+
+          const Divider(),
+
           // --- 정보 ---
           _SectionHeader(title: '정보'),
           ListTile(

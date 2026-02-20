@@ -41,6 +41,20 @@ class UserRepository {
     await _usersRef.doc(uid).update({'displayName': displayName});
   }
 
+  /// 동네 정보 저장 (sido/sigungu/dong 동시 업데이트)
+  Future<void> updateLocation(
+    String uid, {
+    required String sido,
+    required String sigungu,
+    required String dong,
+  }) async {
+    await _usersRef.doc(uid).update({
+      'sido': sido,
+      'sigungu': sigungu,
+      'dong': dong,
+    });
+  }
+
   Future<void> deleteUser(String uid) async {
     await _usersRef.doc(uid).delete();
   }

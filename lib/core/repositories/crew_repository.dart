@@ -31,29 +31,25 @@ class CrewRepository {
     return snapshot.docs.map((doc) => Crew.fromFirestore(doc)).toList();
   }
 
-  Future<List<Crew>> getMyCrews(String uid) async {
-    // Get all crews where user is a member
-    final crewsWithMember = <Crew>[];
-
-    // This requires a collection group query
-    final memberDocs = await _firestore
+  Stream<List<Crew>> watchMyCrews(String uid) {
+    return _firestore
         .collectionGroup('members')
         .where('uid', isEqualTo: uid)
         .where('status', isEqualTo: MemberStatus.active.value)
-        .get();
-
-    for (final memberDoc in memberDocs.docs) {
-      // Path: crews/{crewId}/members/{uid}
-      final crewId = memberDoc.reference.parent.parent?.id;
-      if (crewId != null) {
-        final crew = await getCrew(crewId);
-        if (crew != null) {
-          crewsWithMember.add(crew);
+        .snapshots()
+        .asyncMap((snapshot) async {
+      final crews = <Crew>[];
+      for (final doc in snapshot.docs) {
+        final crewId = doc.reference.parent.parent?.id;
+        if (crewId != null) {
+          final crew = await getCrew(crewId);
+          if (crew != null) {
+            crews.add(crew);
+          }
         }
       }
-    }
-
-    return crewsWithMember;
+      return crews;
+    });
   }
 
   Future<bool> isNameTaken(String name) async {
@@ -98,6 +94,20 @@ class CrewRepository {
     await _crewsRef.doc(crewId).update({
       'settings': settings.toMap(),
     });
+  }
+
+  Future<void> transferOwnership(String crewId, String oldOwnerUid, String newOwnerUid) async {
+    final batch = _firestore.batch();
+    batch.update(_crewsRef.doc(crewId), {'ownerUid': newOwnerUid});
+    batch.update(
+      _crewsRef.doc(crewId).collection('members').doc(oldOwnerUid),
+      {'role': MemberRole.member.value},
+    );
+    batch.update(
+      _crewsRef.doc(crewId).collection('members').doc(newOwnerUid),
+      {'role': MemberRole.owner.value},
+    );
+    await batch.commit();
   }
 
   Future<void> deleteCrew(String crewId) async {

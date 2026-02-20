@@ -108,7 +108,7 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
         imageQuality: 85,
       );
 
-      if (picked != null) {
+      if (picked != null && mounted) {
         final rawFile = File(picked.path);
 
         // Show stamping indicator

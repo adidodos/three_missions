@@ -70,4 +70,56 @@ class MemberRepository {
     }
     await batch.commit();
   }
+
+  Future<void> updateDisplayNameInAllCrews(String uid, String displayName) async {
+    final memberDocs = await _firestore
+        .collectionGroup('members')
+        .where('uid', isEqualTo: uid)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in memberDocs.docs) {
+      batch.update(doc.reference, {'displayName': displayName});
+    }
+    await batch.commit();
+  }
+
+  /// Get all member documents for a user (for account deletion - to find crew IDs).
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> getUserMemberDocs(String uid) async {
+    final snapshot = await _firestore
+        .collectionGroup('members')
+        .where('uid', isEqualTo: uid)
+        .get();
+    return snapshot.docs;
+  }
+
+  /// Returns crew IDs where the user is the owner
+  Future<List<String>> getOwnedCrewIds(String uid) async {
+    // Query by uid only (collectionGroup index exists for uid),
+    // then filter role client-side to avoid needing a composite index.
+    final memberDocs = await _firestore
+        .collectionGroup('members')
+        .where('uid', isEqualTo: uid)
+        .get();
+
+    return memberDocs.docs
+        .where((doc) => doc.data()['role'] == MemberRole.owner.value)
+        .map((doc) => doc.reference.parent.parent?.id)
+        .whereType<String>()
+        .toList();
+  }
+
+  /// Remove user from all crews (for account deletion)
+  Future<void> removeUserFromAllCrews(String uid) async {
+    final memberDocs = await _firestore
+        .collectionGroup('members')
+        .where('uid', isEqualTo: uid)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in memberDocs.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
 }

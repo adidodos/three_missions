@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/models/inquiry.dart';
 import '../../../core/repositories/inquiry_repository.dart';
+import 'inquiry_detail_screen.dart';
 import 'inquiry_form_dialog.dart';
 
 final _myInquiriesProvider = StreamProvider.family<List<Inquiry>, String>((
@@ -178,65 +179,53 @@ class _InquiryCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    inquiry.title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _StatusChip(isAnswered: inquiry.isAnswered),
-              ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => InquiryDetailScreen(inquiry: inquiry),
             ),
-            const SizedBox(height: 8),
-            Text(inquiry.content, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 4),
-            Text(
-              dateFormat.format(inquiry.createdAt),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-            if (inquiry.isAnswered) ...[
-              const Divider(height: 24),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.support_agent,
-                    size: 16,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '답변',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      inquiry.title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  _StatusChip(isAnswered: inquiry.isAnswered),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(inquiry.answer!, style: theme.textTheme.bodyMedium),
-              if (inquiry.answeredAt != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  dateFormat.format(inquiry.answeredAt!),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
+              const SizedBox(height: 6),
+              Text(
+                inquiry.content,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ],
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                dateFormat.format(inquiry.createdAt),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       ),
     );

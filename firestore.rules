@@ -11,9 +11,15 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
-    function isGlobalAdmin() {
+    function isDeveloper() {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        request.auth.token.email == 'ddoddoyun1213@gmail.com';
+    }
+
+    function isGlobalAdmin() {
+      return isDeveloper() ||
+        (isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
     // Get member document for current user in a crew
@@ -44,6 +50,13 @@ service cloud.firestore {
     }
 
     // ==================
+    // Collection group: joinRequests (for account deletion)
+    // ==================
+    match /{path=**}/joinRequests/{requestId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ==================
     // /users/{uid}
     // ==================
     match /users/{uid} {
@@ -59,8 +72,10 @@ service cloud.firestore {
     match /admins/{uid} {
       // A user can only read their own admin marker document.
       allow read: if isOwner(uid);
+      // Developer can create their own admin document (bootstrap).
+      allow create: if isGlobalAdmin() || (isDeveloper() && isOwner(uid));
       // Only admins can manage admin documents.
-      allow create, update, delete: if isGlobalAdmin();
+      allow update, delete: if isGlobalAdmin();
     }
 
     // ==================
@@ -76,6 +91,31 @@ service cloud.firestore {
       // Only admins can update (answer)
       allow update: if isGlobalAdmin();
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isGlobalAdmin());
+    }
+
+    // ==================
+    // /wall_posts/{crewId}
+    // 크루 홍보 담벼락 글 (crewId = 문서 ID, 크루당 1개)
+    // ==================
+    match /wall_posts/{crewId} {
+      // 로그인한 모든 사용자가 읽기 가능
+      allow read: if isSignedIn();
+
+      // 크루장(OWNER)만 작성 가능
+      // ownerUid는 반드시 요청자 uid와 일치해야 함
+      allow create: if isCrewOwner(crewId)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.crewId == crewId;
+
+      // 크루장만 수정 가능
+      // crewId, ownerUid는 변경 불가
+      allow update: if isCrewOwner(crewId)
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.crewId == resource.data.crewId;
+
+      // 크루장 또는 전역 관리자만 삭제 가능
+      allow delete: if isCrewOwner(crewId) || isGlobalAdmin();
     }
 
     // ==================
@@ -105,7 +145,18 @@ service cloud.firestore {
               && uid == request.auth.uid
               && getAfter(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid == request.auth.uid
               && request.resource.data.role == 'OWNER');
-        allow update: if isAdmin(crewId) && resource.data.role != 'OWNER';
+        // Admins can update non-owner members (role changes, bans, etc.)
+        // Users can update their own member doc (profile sync) but cannot change role/status
+        // Owner can step down to MEMBER atomically as part of an ownership transfer batch
+        allow update: if (isAdmin(crewId) && resource.data.role != 'OWNER')
+          || (isSignedIn() && uid == request.auth.uid
+              && request.resource.data.role == resource.data.role
+              && request.resource.data.status == resource.data.status)
+          || (isSignedIn() && uid == request.auth.uid
+              && resource.data.role == 'OWNER'
+              && request.resource.data.role == 'MEMBER'
+              && request.resource.data.status == resource.data.status
+              && getAfter(/databases/$(database)/documents/crews/$(crewId)).data.ownerUid != request.auth.uid);
         // Users can delete their own member doc (leave crew / account deletion)
         // Admins can delete non-owner members (kick)
         allow delete: if (isSignedIn() && uid == request.auth.uid)

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/models/workout.dart';
 import '../../../../core/utils/date_keys.dart';
 import '../../../../core/utils/mission_status.dart';
+import '../../table/workout_detail_dialog.dart';
 import '../crew_home_provider.dart';
 
 class WeekCalendar extends ConsumerWidget {
@@ -31,17 +33,19 @@ class WeekCalendar extends ConsumerWidget {
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text('오류: $e'),
               data: (workouts) {
-                final workoutDates = workouts.map((w) => w.dateKey).toSet();
+                final workoutMap = {
+                  for (final w in workouts) w.dateKey: w,
+                };
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: weekDates.map((date) {
                     final dateKey = toDateKey(date);
-                    final hasWorkout = workoutDates.contains(dateKey);
+                    final workout = workoutMap[dateKey];
                     final isToday = dateKey == todayDateKey;
                     final status = getMissionStatus(
                       date: date,
-                      hasRecord: hasWorkout,
+                      hasRecord: workout != null,
                     );
                     final dayName = DateFormat.E('ko').format(date);
 
@@ -50,6 +54,7 @@ class WeekCalendar extends ConsumerWidget {
                       date: date.day.toString(),
                       status: status,
                       isToday: isToday,
+                      workout: workout,
                     );
                   }).toList(),
                 );
@@ -67,19 +72,21 @@ class _DayCell extends StatelessWidget {
   final String date;
   final MissionStatus status;
   final bool isToday;
+  final Workout? workout;
 
   const _DayCell({
     required this.dayName,
     required this.date,
     required this.status,
     required this.isToday,
+    this.workout,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
+    final cell = Column(
       children: [
         Text(
           dayName,
@@ -126,5 +133,19 @@ class _DayCell extends StatelessWidget {
         ),
       ],
     );
+
+    if (status == MissionStatus.completed && workout != null) {
+      return GestureDetector(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (_) => WorkoutDetailDialog(workout: workout!),
+          );
+        },
+        child: cell,
+      );
+    }
+
+    return cell;
   }
 }

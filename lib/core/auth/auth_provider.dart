@@ -17,6 +17,14 @@ final currentUserProvider = Provider<User?>((ref) {
   return ref.watch(authStateProvider).value;
 });
 
+/// Stable provider that only changes when the UID actually changes (sign in/out).
+/// Unlike [currentUserProvider], this does NOT change when Firebase re-emits
+/// the same user as a new object (e.g. on app resume from camera/gallery),
+/// preventing unnecessary cascade re-evaluations on downstream providers.
+final currentUidProvider = Provider<String?>((ref) {
+  return ref.watch(currentUserProvider)?.uid;
+});
+
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
 });

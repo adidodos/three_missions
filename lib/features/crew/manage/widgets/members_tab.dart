@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/auth/auth_provider.dart';
 import '../../../../core/router/router.dart';
 import '../../../../core/models/member.dart';
@@ -103,12 +104,24 @@ class MembersTab extends ConsumerWidget {
                 );
 
                 if (confirmed == true && currentUser != null) {
-                  final crewRepo = ref.read(manageCrewRepositoryProvider);
-                  await crewRepo.transferOwnership(
-                    crewId,
-                    currentUser.uid,
-                    member.uid,
-                  );
+                  try {
+                    final crewRepo = ref.read(manageCrewRepositoryProvider);
+                    await crewRepo.transferOwnership(
+                      crewId,
+                      currentUser.uid,
+                      member.uid,
+                    );
+                    ref.invalidate(crewMembershipProvider(crewId));
+                    if (context.mounted) {
+                      context.go('/crew/$crewId');
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('위임 실패: $e')),
+                      );
+                    }
+                  }
                 }
               },
             ),

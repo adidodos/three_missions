@@ -13,6 +13,10 @@ class UserProfile {
   /// Defaults to false for new users; Google avatar is never used.
   final bool hasCustomPhoto;
   final DateTime createdAt;
+  // 동네 정보
+  final String? sido;       // 시/도
+  final String? sigungu;    // 시/군/구
+  final String? dong;       // 읍/면/동
 
   const UserProfile({
     required this.uid,
@@ -21,7 +25,12 @@ class UserProfile {
     this.photoUrl,
     this.hasCustomPhoto = false,
     required this.createdAt,
+    this.sido,
+    this.sigungu,
+    this.dong,
   });
+
+  bool get hasLocation => sido != null && sigungu != null && dong != null;
 
   factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
@@ -32,6 +41,9 @@ class UserProfile {
       photoUrl: data['photoUrl'] as String?,
       hasCustomPhoto: data['hasCustomPhoto'] as bool? ?? false,
       createdAt: timestampToDateTime(data['createdAt'] as Timestamp?),
+      sido: data['sido'] as String?,
+      sigungu: data['sigungu'] as String?,
+      dong: data['dong'] as String?,
     );
   }
 
@@ -57,6 +69,9 @@ class UserProfile {
     String? email,
     String? photoUrl,
     bool? hasCustomPhoto,
+    String? sido,
+    String? sigungu,
+    String? dong,
   }) => UserProfile(
     uid: uid,
     displayName: displayName ?? this.displayName,
@@ -64,5 +79,8 @@ class UserProfile {
     photoUrl: photoUrl ?? this.photoUrl,
     hasCustomPhoto: hasCustomPhoto ?? this.hasCustomPhoto,
     createdAt: createdAt,
+    sido: sido ?? this.sido,
+    sigungu: sigungu ?? this.sigungu,
+    dong: dong ?? this.dong,
   );
 }

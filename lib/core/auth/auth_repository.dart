@@ -47,6 +47,38 @@ class AuthRepository {
     await _auth.currentUser?.reload();
   }
 
+  Future<void> updateDisplayName(String displayName) async {
+    await _auth.currentUser?.updateDisplayName(displayName);
+    await _auth.currentUser?.reload();
+  }
+
+  /// Re-authenticate with Google before sensitive operations (e.g. account deletion).
+  /// Throws on failure/cancellation.
+  Future<void> reauthenticateWithGoogle() async {
+    await _ensureInitialized();
+
+    final googleUser = await _googleSignIn.authenticate();
+    // ignore: unnecessary_null_comparison
+    if (googleUser == null) {
+      throw Exception('재인증이 취소되었습니다.');
+    }
+
+    final googleAuth = googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user signed in');
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user signed in');
+    await user.delete();
+  }
+
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();

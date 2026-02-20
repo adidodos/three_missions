@@ -1,13 +1,19 @@
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/models/member.dart';
 import '../../../core/repositories/crew_repository.dart';
+import '../../../core/repositories/member_repository.dart';
 import '../../../core/router/router.dart';
 import '../../hub/hub_provider.dart';
 import 'widgets/pending_requests_tab.dart';
 import 'widgets/members_tab.dart';
 import 'manage_provider.dart';
+import '../home/crew_home_provider.dart';
+import '../../wall/wall_post_form_screen.dart';
+import '../../wall/wall_provider.dart';
 
 class ManageScreen extends ConsumerStatefulWidget {
   final String crewId;
@@ -46,11 +52,18 @@ class _ManageScreenState extends ConsumerState<ManageScreen>
       appBar: AppBar(
         title: const Text('크루 관리'),
         actions: [
-          if (isOwner)
+          if (isOwner) ...[
+            // 홍보글 작성/수정
+            IconButton(
+              icon: const Icon(Icons.campaign_outlined),
+              tooltip: '홍보글 관리',
+              onPressed: () => _openWallPostForm(context, ref),
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: () => _showDeleteConfirmation(context, ref),
             ),
+          ],
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -94,7 +107,59 @@ class _ManageScreenState extends ConsumerState<ManageScreen>
           MembersTab(crewId: widget.crewId),
         ],
       ),
+      floatingActionButton: kDebugMode
+          ? FloatingActionButton(
+              onPressed: () => _addTestMember(context, ref),
+              child: const Icon(Icons.person_add),
+            )
+          : null,
     );
+  }
+
+  Future<void> _openWallPostForm(BuildContext context, WidgetRef ref) async {
+    final crewAsync = ref.read(crewDetailProvider(widget.crewId));
+    final crewName = crewAsync.value?.name ?? '';
+    final existing = await ref.read(crewWallPostProvider(widget.crewId).future);
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WallPostFormScreen(
+          crewId: widget.crewId,
+          crewName: crewName,
+          existing: existing,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addTestMember(BuildContext context, WidgetRef ref) async {
+    final random = Random();
+    final names = ['김철수', '이영희', '박민수', '정수진', '최준호', '한지민', '오세훈', '윤서연'];
+    final name = names[random.nextInt(names.length)];
+    final fakeUid = 'test_${DateTime.now().millisecondsSinceEpoch}';
+
+    final member = Member(
+      uid: fakeUid,
+      displayName: name,
+      role: MemberRole.member,
+      joinedAt: DateTime.now(),
+    );
+
+    try {
+      await MemberRepository().addMember(widget.crewId, member);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('테스트 멤버 "$name" 추가 완료')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('오류: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _showDeleteConfirmation(BuildContext context, WidgetRef ref) async {
